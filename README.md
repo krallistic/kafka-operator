@@ -3,4 +3,4 @@
 
 
 # Develop
-Basic Architecture copied from the great work of Steve Sloka <slokas@upmc.edu> on the elasticsearch operator
+Basic Architecture inspired from the great work of Steve Sloka <slokas@upmc.edu> on the elasticsearch operator
