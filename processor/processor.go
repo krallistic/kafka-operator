@@ -2,7 +2,7 @@ package processor
 
 import (
 	k8sclient "k8s.io/client-go/kubernetes"
-	kafkaOperatorSpec "github.com/krallistic/kafka-operator/pkg/spec"
+	kafkaOperatorSpec "github.com/krallistic/kafka-operator/spec"
 	"fmt"
 )
 

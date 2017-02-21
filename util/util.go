@@ -11,6 +11,18 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 )
 
+const (
+	tprName = "kafka.operator.test"
+	namespace = "kafka" //TODO flexible NS
+
+	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
+)
+
+var (
+	getEndpoint = fmt.Sprintf("/apis/kafka.operator.test/v1/namespaces/%s/kafkaclusters", namespace)
+	watchEndpoint = fmt.Sprintf("/apis/kafka.operator.test/v1/watch/namespaces/%s/kafkaclusters", namespace)
+)
+
 type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
 	MasterHost string
@@ -80,15 +92,17 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 
 		tpr := &v1beta1.ThirdPartyResource{
 			ObjectMeta: v1.ObjectMeta{
-				Name: "kafka.cluster.test",
+				Name: tprName,
+				Namespace: namespace,
 			},
 			Versions: []v1beta1.APIVersion{
 				{Name: "v1"},
 			},
 			Description: "Managed apache kafke clusters",
 		}
-		fmt.Println(tpr)
-		_, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
+		fmt.Println("Creating TPR: ", tpr)
+		retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
+		fmt.Println("retVal: ", retVal)
 		if err != nil {
 			fmt.Println("Error creating TPR: ", err)
 		}

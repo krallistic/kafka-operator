@@ -1,0 +1,7 @@
+apiVersion: "kafka.operator.test/v1"
+kind: "KafkaCluster"
+metadata:
+    name: "example-kafka-cluster"
+spec:
+    BrokerNodes: 3
+    ZookeeperConnect: "zookeeper:123"
