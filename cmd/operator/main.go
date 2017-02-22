@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"flag"
-	"github.com/krallistic/kafka-operator/pkg/util"
+	"github.com/krallistic/kafka-operator/util"
 
 	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
 )
@@ -39,7 +39,11 @@ func Main() int {
 	fmt.Println(k8sclient)
 	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", meta_v1.GetOptions{}))
 	k8sclient.CreateKubernetesThirdPartyResource()
-	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", meta_v1.GetOptions{}))
+	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafkaCluster.operator.com", meta_v1.GetOptions{}))
+	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafka-cluster.operator.com", meta_v1.GetOptions{}))
+
+	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("ElasticsearchCluster", meta_v1.GetOptions{}))
+
 	return 0
 
 

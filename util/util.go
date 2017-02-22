@@ -12,7 +12,10 @@ import (
 )
 
 const (
-	tprName = "kafka.operator.test"
+	tprShortName = "kafka-cluster"
+	tprSuffix = "incubator.test.com"
+	tprFullName = tprShortName + "." + tprSuffix
+	tprName = "kafka.operator.com"
 	namespace = "kafka" //TODO flexible NS
 
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
@@ -92,8 +95,7 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 
 		tpr := &v1beta1.ThirdPartyResource{
 			ObjectMeta: v1.ObjectMeta{
-				Name: tprName,
-				Namespace: namespace,
+				Name: tprFullName,
 			},
 			Versions: []v1beta1.APIVersion{
 				{Name: "v1"},
