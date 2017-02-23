@@ -1,6 +1,7 @@
 apiVersion: "incubator.test.com/v1"
 kind: "KafkaCluster"
 metadata:
-  name: hello-world
-cronSpec: "*/1 * * * *"
-image: hello-world
+  name: hello-world-cluster
+brokerCount: 3
+zookeeperConnect: localhost:2181
+image: solsson/kafka

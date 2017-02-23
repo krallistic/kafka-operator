@@ -10,8 +10,12 @@ type KafkaCluster struct {
 
 type KafkaClusterSpec struct {
 	//Amount of Broker Nodes
-	BrokerNodes int32 `json:"brokerNodes"`
+	BrokerCount int32 `json:"brokerCount"`
+	Image string `json:"image"`
+	
+	jmxSidecar bool `json:"jmxSidecar"`
 	
 	ZookeeperConnect string `json:"zookeeperConnect"`
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	
 }
