@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"time"
 	"encoding/json"
+	"k8s.io/client-go/pkg/apis/apps"
+	"k8s.io/client-go/pkg/api"
 )
 
 const (
@@ -188,4 +190,62 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan KafkaClusterWatchEvent, <-chan 
 
 
 	return eventsChannel, errorChannel
+}
+
+func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image string, name string) error {
+
+	//Check if sts with Name already exists
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(name, c.DefaultOption)
+
+	if err != nil {
+		fmt.Println("Error get sts")
+	}
+	if len(statefulSet.Name) == 0 {
+		fmt.Println("STS dosnt exist, creating")
+
+		statefulSet := &apps.StatefulSet{
+			ObjectMeta: api.ObjectMeta{
+				Name: name,
+				Labels: map[string]string{
+					"component": "kafka",
+					"creator": "kafkaOperator",
+					"name": name,
+				},
+			},
+			Spec: apps.StatefulSetSpec{
+				Replicas: replicas,
+				ServiceName: "kafka-broker-svc", //TODO variable svc name, or depnedent on soemthing
+				Template: api.PodTemplateSpec{
+					ObjectMeta: api.ObjectMeta{
+						Labels: map[string]string{
+							"TODO":"betterLabels, same as sts?",
+						},
+						Annotations:map[string]string{
+							"INITContainer": "could be used",
+							"affinity": "also",
+						},
+					},
+					Spec:api.PodSpec{
+						Containers: []api.Container{
+							api.Container{
+								Name: "KafkaContainer",
+								Image: image,
+								Ports: []api.ContainerPort{
+									api.ContainerPort{
+										Name: "kafka",
+										ContainerPort: 9092,
+									},
+								},
+								Command: []string{"sh -c ./bin/kafka-server-start.sh config/server.properties --override zookeeper.connect=localhost:2181/ --override broker.id=${HOSTNAME##*-}",},
+							},
+						},
+					},
+				},
+			},
+		}
+		fmt.Println(statefulSet)
+	} else {
+		fmt.Println("STS already exist. TODO what to do now?", statefulSet)
+	}
+	return nil
 }

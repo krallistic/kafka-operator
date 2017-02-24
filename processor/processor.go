@@ -42,6 +42,7 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 				switch currentEvent.Type {
 				case "ADDED":
 					fmt.Println("ADDED")
+					p.CreateKafkaCluster(currentEvent.Object)
 				case "MODIFIED":
 					fmt.Println("MODIFIED")
 				default:
@@ -56,6 +57,18 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 
 		}
 	}()
+
+
+}
+
+func (p *Processor) CreateKafkaCluster(clusterSpec kafkaOperatorSpec.KafkaCluster) {
+	fmt.Println("CreatingKafkaCluster", clusterSpec)
+	fmt.Println("SPEC: ", clusterSpec.Spec)
+	// TODO What happens if connections loss? after a reconnect we get ADDED again :/
+	// We need to hold State?
+
+	//CREATE Broker sts
+
 
 
 }

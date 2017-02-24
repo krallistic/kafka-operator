@@ -3,7 +3,13 @@ kind: "KafkaCluster"
 metadata:
   name: hello-world-cluster-2
 spec:
-    brokerCount: 3
+    brokers:
+        count: 3
+        memory: 1024
+        diskSpace: 50
+        cpu: 1
+    kafkaOptions:
+       logRetentionHours: 24
     zookeeperConnect: localhost:2181
     image: solsson/kafka
     jmxSidecar: false
