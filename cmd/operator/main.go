@@ -2,18 +2,21 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"os/signal"
 	"flag"
 	"github.com/krallistic/kafka-operator/util"
 
 	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
+	"os"
+	"syscall"
+	"github.com/krallistic/kafka-operator/processor"
 )
 
 var (
 	version = "0.0.1"
 	kubeConfigFile string
 	print bool
-	masterHost   string
+	masterHost string
 
 )
 
@@ -43,6 +46,32 @@ func Main() int {
 	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafka-cluster.operator.com", meta_v1.GetOptions{}))
 
 	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("ElasticsearchCluster", meta_v1.GetOptions{}))
+	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
+
+
+	proccessor, err := processor.New(*k8sclient.KubernetesClient, "baseImage", *k8sclient)
+	proccessor.WatchKafkaEvents(controlChannel)
+
+
+
+
+
+
+
+	osSignals := make(chan os.Signal, 1)
+	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)
+
+	runningLoop: for {
+		select {
+		case sig :=  <- osSignals:
+			fmt.Println("Got Signal from OS shutting Down: ", sig)
+			break runningLoop
+
+		}
+	}
+	fmt.Println("Existing now")
+	//TODO Eventually cleanup?
+
 
 	return 0
 

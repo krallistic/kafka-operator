@@ -9,6 +9,11 @@ import (
 	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/pkg/api/v1"
+	"crypto/tls"
+	"github.com/krallistic/kafka-operator/spec"
+	"net/http"
+	"time"
+	"encoding/json"
 )
 
 const (
@@ -16,15 +21,23 @@ const (
 	tprSuffix = "incubator.test.com"
 	tprFullName = tprShortName + "." + tprSuffix
 	tprName = "kafka.operator.com"
-	namespace = "kafka" //TODO flexible NS
+	namespace = "default" //TODO flexible NS
 
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
 )
 
 var (
-	getEndpoint = fmt.Sprintf("/apis/kafka.operator.test/v1/namespaces/%s/kafkaclusters", namespace)
-	watchEndpoint = fmt.Sprintf("/apis/kafka.operator.test/v1/watch/namespaces/%s/kafkaclusters", namespace)
+	//TODO make kafkaclusters var
+	getEndpoint = fmt.Sprintf("/apis/%s/v1/namespaces/%s/kafkaclusters", tprSuffix,  namespace)
+	watchEndpoint = fmt.Sprintf("/apis/%s/v1/watch/namespaces/%s/kafkaclusters", tprSuffix, namespace)
 )
+
+
+type KafkaClusterWatchEvent struct {
+	Type   string                      `json:"type"`
+	Object spec.KafkaCluster `json:"object"`
+}
+
 
 type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
@@ -88,6 +101,24 @@ func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 	return client, nil
 }
 
+func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
+	//var resp *http.Response
+	var err error
+
+	transport := &http.Transport{ TLSClientConfig: &tls.Config{InsecureSkipVerify:true} }
+
+	//We go over the http because go client cant do tpr?
+	httpClient := http.Client{Transport: transport}
+	response, err := httpClient.Get(c.MasterHost + getEndpoint)
+	if err != nil {
+		fmt.Println("Error while getting resonse from API: ", err)
+		return nil, err
+	}
+	fmt.Println("GetKafaCluster API Response: ", response)
+
+	return nil, nil
+}
+
 func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 	tprResult, _ := c.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", c.DefaultOption)
 	if len(tprResult.Name) == 0 {
@@ -117,4 +148,44 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 		//TODO check for correctnes/verison?
 	}
 	return nil
+}
+
+func (c *ClientUtil)MonitorKafkaEvents() (<-chan KafkaClusterWatchEvent, <-chan error) {
+	errorChannel := make(chan error, 1)
+	eventsChannel := make(chan KafkaClusterWatchEvent)
+
+	go func() {
+		for {
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
+			fmt.Println("Trying API: ", c.MasterHost + watchEndpoint)
+			response, err := client.Get(c.MasterHost + watchEndpoint)
+			if err != nil {
+				fmt.Println("Error reading API:" , err , response)
+				errorChannel <- err
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			fmt.Println("Got Response from WathEndpoint, parsing now", response)
+			decoder := json.NewDecoder(response.Body)
+			for {
+				var event KafkaClusterWatchEvent
+				err = decoder.Decode(&event)
+				if err != nil {
+					fmt.Println("Error decoding response ", err)
+					errorChannel <- err
+					break
+				}
+				fmt.Println("Parsed KafkaWatch Event ", event)
+				eventsChannel <- event
+			}
+
+			time.Sleep(2 * time.Second)
+		}
+	}()
+
+
+	return eventsChannel, errorChannel
 }
