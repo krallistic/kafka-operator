@@ -36,7 +36,7 @@ var (
 
 
 type KafkaClusterWatchEvent struct {
-	Type   string                      `json:"type"`
+	Type string `json:"type"`
 	Object spec.KafkaCluster `json:"object"`
 }
 
@@ -225,18 +225,33 @@ func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image string, name 
 							"affinity": "also",
 						},
 					},
+
 					Spec:api.PodSpec{
 						Containers: []api.Container{
 							api.Container{
 								Name: "KafkaContainer",
 								Image: image,
+								Env: []api.EnvVar{
+									api.EnvVar{
+										Name: "NAMESPACE",
+										ValueFrom: &api.EnvVarSource{
+											FieldRef: &api.ObjectFieldSelector{
+												FieldPath: "metadata.namespace",
+											},
+										},
+									},
+									api.EnvVar{
+										Name:  "KAFKA_ZOOKEEPER_CONNECT",
+										Value: "myesdb",
+									},
+								},
 								Ports: []api.ContainerPort{
 									api.ContainerPort{
 										Name: "kafka",
 										ContainerPort: 9092,
 									},
 								},
-								Command: []string{"sh -c ./bin/kafka-server-start.sh config/server.properties --override zookeeper.connect=localhost:2181/ --override broker.id=${HOSTNAME##*-}",},
+
 							},
 						},
 					},

@@ -17,6 +17,9 @@ var (
 	kubeConfigFile string
 	print bool
 	masterHost string
+	image string
+	zookeerConnect string
+
 
 )
 
@@ -25,6 +28,9 @@ func init() {
 	flag.BoolVar(&print, "print", false, "Show basic information and quit - debug")
 	flag.StringVar(&kubeConfigFile, "kubeconfig", "/Users/jakobkaralus/.kube/config", "Location of kubecfg file for access to kubernetes master service; --kube_master_url overrides the URL part of this; if neither this nor --kube_master_url are provided, defaults to service account tokens")
 	flag.StringVar(&masterHost, "masterhost", "http://127.0.0.1:8080", "Full url to kubernetes api server")
+	flag.StringVar(&image, "image", "confluentinc/cp-kafka:latest", "Image to use for Brokers")
+	flag.StringVar(&zookeerConnect, "zookeeperConnect", "TODODefaultzKValue?", "Connect String to zK, if no string is give a custom zookeeper ist deployed")
+
 	flag.Parse()
 }
 
@@ -49,7 +55,7 @@ func Main() int {
 	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
 
 
-	proccessor, err := processor.New(*k8sclient.KubernetesClient, "baseImage", *k8sclient)
+	proccessor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient)
 	proccessor.WatchKafkaEvents(controlChannel)
 
 
