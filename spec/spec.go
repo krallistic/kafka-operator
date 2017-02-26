@@ -12,6 +12,7 @@ type KafkaClusterSpec struct {
 	//Amount of Broker Nodes
 	BrokerCount int32 `json:"brokerCount"`
 	Image string `json:"image"`
+	Name string `json:"name"`
 	
 	Brokers ClusterBrokerSpec `json:"brokers"`
 	KafkaOptions KafkaOption `json:"kafkaOptions"`

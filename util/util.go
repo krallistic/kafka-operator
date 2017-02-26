@@ -192,6 +192,58 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan KafkaClusterWatchEvent, <-chan 
 	return eventsChannel, errorChannel
 }
 
+func (c *ClientUtil) CreateHeadlessBrokerService(name string) error {
+	//Check if already exists?
+	svc, err := c.KubernetesClient.Services(namespace).Get(name, c.DefaultOption)
+	if err != nil {
+		fmt.Println("error while talking to k8s api: ", err)
+		//TODO better error handling, global retry module?
+		return err
+	}
+	if len(svc.Name) == 0 {
+		//Service dosnt exist, creating new.
+		fmt.Println("Service dosnt exist, creating new")
+		service := &v1.Service{
+			ObjectMeta: v1.ObjectMeta{
+				Name: name,
+				Annotations: map[string]string{
+					"component": "kafka",
+					"name":      name,
+					"role": "data",
+					"type": "service",
+				},
+			},
+
+			Spec: v1.ServiceSpec{
+				Selector: map[string]string{
+					"component": "kafka",
+					"role":      "data",
+					//TODO add more unique cluster selector
+				},
+				Ports: []v1.ServicePort{
+					v1.ServicePort{
+						Name:     "Broker",
+						Port:     9092,
+					},
+				},
+			},
+		}
+		_, err := c.KubernetesClient.Services(namespace).Create(service)
+		if err != nil {
+			fmt.Println("Error while creating Service: ", err)
+		}
+		fmt.Println(service)
+	} else {
+		//Service exist
+		fmt.Println("Headless Broker SVC already exists: ", svc)
+		//TODO maybe check for correct service?
+	}
+
+
+	return nil
+}
+
+
 func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image string, name string) error {
 
 	//Check if sts with Name already exists
