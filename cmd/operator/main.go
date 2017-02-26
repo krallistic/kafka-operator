@@ -29,8 +29,8 @@ func init() {
 	flag.StringVar(&kubeConfigFile, "kubeconfig", "/Users/jakobkaralus/.kube/config", "Location of kubecfg file for access to kubernetes master service; --kube_master_url overrides the URL part of this; if neither this nor --kube_master_url are provided, defaults to service account tokens")
 	flag.StringVar(&masterHost, "masterhost", "http://127.0.0.1:8080", "Full url to kubernetes api server")
 	flag.StringVar(&image, "image", "confluentinc/cp-kafka:latest", "Image to use for Brokers")
-	flag.StringVar(&zookeerConnect, "zookeeperConnect", "TODODefaultzKValue?", "Connect String to zK, if no string is give a custom zookeeper ist deployed")
-
+	flag.StringVar(&zookeerConnect, "zookeeperConnect", "zk-0.zk-headless.default.svc.cluster.local:2181", "Connect String to zK, if no string is give a custom zookeeper ist deployed")
+	//TODO Broker Image&Zookeeper over tpr or Flag?
 	flag.Parse()
 }
 
