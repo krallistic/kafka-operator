@@ -192,7 +192,7 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan KafkaClusterWatchEvent, <-chan 
 	return eventsChannel, errorChannel
 }
 
-func (c *ClientUtil) CreateHeadlessBrokerService(name string) error {
+func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 	//Check if already exists?
 	svc, err := c.KubernetesClient.Services(namespace).Get(name, c.DefaultOption)
 	if err != nil {
@@ -203,16 +203,29 @@ func (c *ClientUtil) CreateHeadlessBrokerService(name string) error {
 	if len(svc.Name) == 0 {
 		//Service dosnt exist, creating new.
 		fmt.Println("Service dosnt exist, creating new")
-		service := &v1.Service{
-			ObjectMeta: v1.ObjectMeta{
-				Name: name,
-				Annotations: map[string]string{
-					"component": "kafka",
-					"name":      name,
-					"role": "data",
-					"type": "service",
-				},
+
+
+
+		objectMeta := v1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				"component": "kafka",
+				"name":      name,
+				"role": "data",
+				"type": "service",
 			},
+		}
+
+		if headless == true {
+			objectMeta.Labels = map[string]string{
+				"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
+			}
+			objectMeta.Name = "headless_" + name
+		}
+
+
+		service := &v1.Service{
+			ObjectMeta: objectMeta,
 
 			Spec: v1.ServiceSpec{
 				Selector: map[string]string{
@@ -244,7 +257,7 @@ func (c *ClientUtil) CreateHeadlessBrokerService(name string) error {
 }
 
 
-func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image string, name string) error {
+func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image, name string) error {
 
 	//Check if sts with Name already exists
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(name, c.DefaultOption)
