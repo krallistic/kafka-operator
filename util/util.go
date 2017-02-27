@@ -257,7 +257,12 @@ func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 }
 
 
-func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image, name string) error {
+func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterSpec) error {
+
+
+	name := kafkaClusterSpec.Name
+	replicas := kafkaClusterSpec.BrokerCount
+	image := kafkaClusterSpec.Image
 
 	//Check if sts with Name already exists
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(name, c.DefaultOption)
@@ -307,7 +312,7 @@ func (c *ClientUtil) CreateBrokerStatefulSet(replicas int32, image, name string)
 									},
 									api.EnvVar{
 										Name:  "KAFKA_ZOOKEEPER_CONNECT",
-										Value: "myesdb",
+										Value: kafkaClusterSpec.ZookeeperConnect,
 									},
 								},
 								Ports: []api.ContainerPort{

@@ -73,7 +73,7 @@ func (p *Processor) CreateKafkaCluster(clusterSpec kafkaOperatorSpec.KafkaCluste
 
 	//CREATE Broker sts
 	//Currently we extract name out of spec, maybe move to metadata to be more inline with other k8s komponents.
-	p.util.CreateBrokerStatefulSet(clusterSpec.Spec.BrokerCount, clusterSpec.Spec.Image, clusterSpec.Spec.Name)
+	p.util.CreateBrokerStatefulSet(clusterSpec.Spec)
 
 
 
