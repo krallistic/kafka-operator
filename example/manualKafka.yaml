@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  labels:
+    app: kafka-headless
+spec:
+  ports:
+  - port: 9092
+    name: client
+  clusterIP: None
+  selector:
+    app: kafka
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: kafka
+spec:
+  serviceName: kafka-headless
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kafka
+      annotations:
+        pod.alpha.kubernetes.io/initialized: "true"
+    spec:
+      containers:
+      - name: kafka
+        imagePullPolicy: Always
+        image: confluentinc/cp-kafka:latest
+        ports:
+        - containerPort: 9092
+          name: client
+        env:
+        - name : KAFKA_ZOOKEEPER_CONNECT
+          value: zk-headless.default.svc.cluster.local
+        - name : KAFKA_ADVERTISED_LISTENERS
+          value: "kafka-0.kafka-broker-svc.cluster.local:9092"
+        - name : KAFKA_BROKER_ID
+          value: "1"
+      volumes:
+        - name: datadir
+          emptyDir: {}

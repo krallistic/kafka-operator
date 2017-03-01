@@ -273,6 +273,10 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 	if len(statefulSet.Name) == 0 {
 		fmt.Println("STS dosnt exist, creating")
 
+
+	KAFKA_ZOOKEEPER_CONNECT: localhost:32181
+	KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092
+
 		statefulSet := &apps.StatefulSet{
 			ObjectMeta: api.ObjectMeta{
 				Name: name,
@@ -313,6 +317,15 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 									api.EnvVar{
 										Name:  "KAFKA_ZOOKEEPER_CONNECT",
 										Value: kafkaClusterSpec.ZookeeperConnect,
+									},
+									api.EnvVar{
+										Name:  "KAFKA_ADVERTISED_LISTENERS",
+										Value: "kafka-0.kafka-broker-svc.cluster.local:9092",
+										//TODO not static, genererate Name, or use ENV VAR?
+									},
+									api.EnvVar{
+										Name:  "KAFKA_BROKER_ID",
+										Value: "1", //TODO getOrdinal? Can be a String? Hostname?
 									},
 								},
 								Ports: []api.ContainerPort{
