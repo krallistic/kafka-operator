@@ -1,12 +1,11 @@
-# kafka-operator
-[WIP] A Kafka Operator for Kubernetes 
+# kafka-operator - [WIP] A Kafka Operator for Kubernetes 
 
 Currently the Operator is under development. Currently only the bare minimum of running a StatefulSet. Not even all arguments in the spec are supported.
  
 There is no tested image for running in inside a cluster. All test are done by running it standalone and use `kubectl proxy -p 8080` to map the API to `localhost:8080'.
 The operator creates a ThirdPartyRessources "KafkaCluster" inside kubernete. You can then create kafka Cluster by using the KafkaCluster Objekt. 
 
-```yamlex
+```yaml
 apiVersion: "incubator.test.com/v1"
 kind: "KafkaCluster"
 metadata:
@@ -32,7 +31,7 @@ This object is then picked up by the Operator and lets him create a StatefulSet 
 
 
 ## Images:
-Currently the supported image is are the offical images from confluent. While its possible to specify other images, due to instrumentation most other images wont work. 
+Currently the supported image is are the offical images from confluent. (https://github.com/confluentinc/cp-docker-images) While its possible to specify other images, due to instrumentation most other images wont work. 
 
 ## Naming Scheme:
 
