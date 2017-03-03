@@ -272,10 +272,7 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 	}
 	if len(statefulSet.Name) == 0 {
 		fmt.Println("STS dosnt exist, creating")
-
-
-	KAFKA_ZOOKEEPER_CONNECT: localhost:32181
-	KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092
+		
 
 		statefulSet := &apps.StatefulSet{
 			ObjectMeta: api.ObjectMeta{
