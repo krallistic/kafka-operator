@@ -197,7 +197,7 @@ func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 	if err != nil {
 		fmt.Println("error while talking to k8s api: ", err)
 		//TODO better error handling, global retry module?
-		return err
+
 	}
 	if len(svc.Name) == 0 {
 		//Service dosnt exist, creating new.
@@ -219,7 +219,7 @@ func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 			objectMeta.Labels = map[string]string{
 				"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
 			}
-			objectMeta.Name = "headless_" + name
+			objectMeta.Name = name
 		}
 
 
@@ -229,15 +229,17 @@ func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 			Spec: v1.ServiceSpec{
 				Selector: map[string]string{
 					"component": "kafka",
+					"creator": "kafkaOperator",
 					"role":      "data",
-					//TODO add more unique cluster selector
+					"name": name,
 				},
 				Ports: []v1.ServicePort{
 					v1.ServicePort{
-						Name:     "Broker",
+						Name:     "broker",
 						Port:     9092,
 					},
 				},
+				ClusterIP: "None",
 			},
 		}
 		_, err := c.KubernetesClient.Services(namespace).Create(service)
@@ -284,26 +286,37 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 			},
 			Spec: appsv1Beta1.StatefulSetSpec{
 				Replicas: &replicas,
+
 				ServiceName: kafkaClusterSpec.Name, //TODO variable svc name, or depnedent on soemthing
 				Template: v1.PodTemplateSpec{
 					ObjectMeta: v1.ObjectMeta{
 						Labels: map[string]string{
 							"component": "kafka",
 							"creator": "kafkaOperator",
-							"role":      "data",
+							"role": "data",
 							"name": name,
 						},
-						Annotations:map[string]string{
-							"INITContainer": "could be used",
-							"affinity": "also",
+						Annotations: map[string]string{
+							"pod.beta.kubernetes.io/init-containers": "[ " +
+								"]",
 						},
 					},
 
 					Spec:v1.PodSpec{
+
 						Containers: []v1.Container{
 							v1.Container{
 								Name: "kafka",
 								Image: image,
+								//TODO String replace operator etc
+								Command: []string{"/bin/bash",
+									"-c",
+									"export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).operator.$(NAMESPACE).svc.cluster.local:9092; \n" +
+									"set -ex\n" +
+									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n" +
+									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n" +
+									"/etc/confluent/docker/run",
+									},
 								Env: []v1.EnvVar{
 									v1.EnvVar{
 										Name: "NAMESPACE",
@@ -317,14 +330,19 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 										Name:  "KAFKA_ZOOKEEPER_CONNECT",
 										Value: kafkaClusterSpec.ZookeeperConnect,
 									},
-									v1.EnvVar{
-										Name:  "KAFKA_ADVERTISED_LISTENERS",
-										Value: "PLAINTEXT://kafka-0." + kafkaClusterSpec.Name + ".default.svc" + ".cluster.local:9092",
-										//TODO not static, genererate Name, or use ENV VAR?
-									},
+									//v1.EnvVar{
+									//	Name:  "KAFKA_ADVERTISED_LISTENERS",
+									//	Value: "PLAINTEXT://kafka-0." + kafkaClusterSpec.Name + ".default.svc" + ".cluster.local:9092",
+									//	//TODO not static, genererate Name, or use ENV VAR?
+									//},
 									v1.EnvVar{
 										Name:  "KAFKA_BROKER_ID",
 										Value: "1", //TODO getOrdinal? Can be a String? Hostname?
+
+									},
+									v1.EnvVar{
+										Name: "TEST",
+										Value: "$HOSTNAME.operator.$NAMESPACE.svc.cluster.local:9092",
 									},
 								},
 								Ports: []v1.ContainerPort{

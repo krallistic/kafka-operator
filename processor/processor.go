@@ -86,7 +86,7 @@ func (p *Processor) CreateKafkaCluster(clusterSpec kafkaOperatorSpec.KafkaCluste
 
 	//Create Headless Brokersvc
 	//TODO better naming
-	p.util.CreateBrokerService(headless_SVC_Name, false)
+	p.util.CreateBrokerService(headless_SVC_Name, true)
 
 	//CREATE Broker sts
 	//Currently we extract name out of spec, maybe move to metadata to be more inline with other k8s komponents.

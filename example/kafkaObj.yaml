@@ -5,7 +5,7 @@ metadata:
 spec:
     name: operator
     brokers:
-        count: 1
+        count: 2
         memory: 1024
         diskSpace: 50
         cpu: 1
