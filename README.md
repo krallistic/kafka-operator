@@ -6,7 +6,7 @@ Currently the Operator is under development. Currently only the bare minimum of 
 There is no tested image for running in inside a cluster. All test are done by running it standalone and use `kubectl proxy -p 8080` to map the API to `localhost:8080'.
 The operator creates a ThirdPartyRessources "KafkaCluster" inside kubernete. You can then create kafka Cluster by using the KafkaCluster Objekt. 
 
-```yamlex
+```yaml
 apiVersion: "incubator.test.com/v1"
 kind: "KafkaCluster"
 metadata:
