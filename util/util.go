@@ -9,13 +9,12 @@ import (
 	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/pkg/api/v1"
+	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 	"crypto/tls"
 	"github.com/krallistic/kafka-operator/spec"
 	"net/http"
 	"time"
 	"encoding/json"
-	"k8s.io/client-go/pkg/apis/apps"
-	"k8s.io/client-go/pkg/api"
 )
 
 const (
@@ -261,7 +260,7 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 
 
 	name := kafkaClusterSpec.Name
-	replicas := kafkaClusterSpec.BrokerCount
+	replicas := kafkaClusterSpec.Brokers.Count
 	image := kafkaClusterSpec.Image
 
 	//Check if sts with Name already exists
@@ -272,24 +271,27 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 	}
 	if len(statefulSet.Name) == 0 {
 		fmt.Println("STS dosnt exist, creating")
-		
 
-		statefulSet := &apps.StatefulSet{
-			ObjectMeta: api.ObjectMeta{
-				Name: name,
+		statefulSet := &appsv1Beta1.StatefulSet{
+			ObjectMeta: v1.ObjectMeta{
+				Name: "kafka",
 				Labels: map[string]string{
 					"component": "kafka",
 					"creator": "kafkaOperator",
+					"role":      "data",
 					"name": name,
 				},
 			},
-			Spec: apps.StatefulSetSpec{
-				Replicas: replicas,
-				ServiceName: "kafka-broker-svc", //TODO variable svc name, or depnedent on soemthing
-				Template: api.PodTemplateSpec{
-					ObjectMeta: api.ObjectMeta{
+			Spec: appsv1Beta1.StatefulSetSpec{
+				Replicas: &replicas,
+				ServiceName: kafkaClusterSpec.Name, //TODO variable svc name, or depnedent on soemthing
+				Template: v1.PodTemplateSpec{
+					ObjectMeta: v1.ObjectMeta{
 						Labels: map[string]string{
-							"TODO":"betterLabels, same as sts?",
+							"component": "kafka",
+							"creator": "kafkaOperator",
+							"role":      "data",
+							"name": name,
 						},
 						Annotations:map[string]string{
 							"INITContainer": "could be used",
@@ -297,36 +299,36 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 						},
 					},
 
-					Spec:api.PodSpec{
-						Containers: []api.Container{
-							api.Container{
-								Name: "KafkaContainer",
+					Spec:v1.PodSpec{
+						Containers: []v1.Container{
+							v1.Container{
+								Name: "kafka",
 								Image: image,
-								Env: []api.EnvVar{
-									api.EnvVar{
+								Env: []v1.EnvVar{
+									v1.EnvVar{
 										Name: "NAMESPACE",
-										ValueFrom: &api.EnvVarSource{
-											FieldRef: &api.ObjectFieldSelector{
+										ValueFrom: &v1.EnvVarSource{
+											FieldRef: &v1.ObjectFieldSelector{
 												FieldPath: "metadata.namespace",
 											},
 										},
 									},
-									api.EnvVar{
+									v1.EnvVar{
 										Name:  "KAFKA_ZOOKEEPER_CONNECT",
 										Value: kafkaClusterSpec.ZookeeperConnect,
 									},
-									api.EnvVar{
+									v1.EnvVar{
 										Name:  "KAFKA_ADVERTISED_LISTENERS",
-										Value: "kafka-0.kafka-broker-svc.cluster.local:9092",
+										Value: "PLAINTEXT://kafka-0." + kafkaClusterSpec.Name + ".default.svc" + ".cluster.local:9092",
 										//TODO not static, genererate Name, or use ENV VAR?
 									},
-									api.EnvVar{
+									v1.EnvVar{
 										Name:  "KAFKA_BROKER_ID",
 										Value: "1", //TODO getOrdinal? Can be a String? Hostname?
 									},
 								},
-								Ports: []api.ContainerPort{
-									api.ContainerPort{
+								Ports: []v1.ContainerPort{
+									v1.ContainerPort{
 										Name: "kafka",
 										ContainerPort: 9092,
 									},
@@ -338,7 +340,12 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 				},
 			},
 		}
+
 		fmt.Println(statefulSet)
+		_, err := c.KubernetesClient.StatefulSets(namespace).Create(statefulSet)
+		if err != nil {
+			fmt.Println("Error while creating StatefulSet: ", err) //TODO what to do with error? If we track State Internally we can do a reconcilidation which would force a recreate
+		}
 	} else {
 		fmt.Println("STS already exist. TODO what to do now?", statefulSet)
 	}

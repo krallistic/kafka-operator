@@ -10,7 +10,6 @@ type KafkaCluster struct {
 
 type KafkaClusterSpec struct {
 	//Amount of Broker Nodes
-	BrokerCount int32 `json:"brokerCount"`
 	Image string `json:"image"`
 	Name string `json:"name"`
 	
@@ -24,10 +23,10 @@ type KafkaClusterSpec struct {
 }
 
 type ClusterBrokerSpec struct {
-	Count int `json:"count"`
-	Memory int `json:"memory"`
-	DiskSpace int `json:"diskSpace"` //TODO Option to use GB etc
-	CPU int `json:"cpu"`
+	Count int32 `json:"count"`
+	Memory int32 `json:"memory"`
+	DiskSpace int32 `json:"diskSpace"` //TODO Option to use GB etc
+	CPU int32 `json:"cpu"`
 }
 
 type KafkaOption struct {

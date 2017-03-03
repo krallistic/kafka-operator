@@ -67,9 +67,26 @@ func (p *Processor) CreateKafkaCluster(clusterSpec kafkaOperatorSpec.KafkaCluste
 	// TODO What happens if connections loss? after a reconnect we get ADDED again :/
 	// We need to hold State?
 
+
+	headless_SVC_Name := clusterSpec.Spec.Name
+	suffix := ".cluster.local:9092"
+	brokerNames := make([]string, clusterSpec.Spec.Brokers.Count)
+
+	round_robing_dns := headless_SVC_Name + suffix
+	fmt.Println("Headless Service Name: ", headless_SVC_Name, " Should be accessable through LB: ", round_robing_dns )
+
+	var i int32
+	for  i = 0; i < clusterSpec.Spec.Brokers.Count; i++ {
+		brokerNames[i] = "kafka-0." + headless_SVC_Name + suffix
+		fmt.Println("Broker", i , " ServiceName: ", brokerNames[i])
+	}
+
+
+
+
 	//Create Headless Brokersvc
 	//TODO better naming
-	p.util.CreateBrokerService(clusterSpec.Spec.Name + "_SVC", false)
+	p.util.CreateBrokerService(headless_SVC_Name, false)
 
 	//CREATE Broker sts
 	//Currently we extract name out of spec, maybe move to metadata to be more inline with other k8s komponents.
