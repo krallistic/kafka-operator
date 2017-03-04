@@ -25,6 +25,21 @@ spec:
 ```
 This object is then picked up by the Operator and lets him create a StatefulSet for the Brokers. 
 
+# Known Issues / Open Tasks
+There are a couple of open Task/Issues, this is mainly just for me tracking progress:
+
+- [ ] Resisze Clusters (without Data Rebalancing)
+- [ ] Delete Cluster
+- [ ] Dokumentation, Vendoring and Testing
+- [ ] Use Ressource (K8s and kafka Options)
+- [ ] Monitoring with JMX Sidecar
+- [ ] Automaticly Rebalacing
+- [ ] Investigate Datagravity 
+
+
+Under kubectl 1.5.X there is an issue with apply and edit on tpr ressources, this is fixed on 1.6, so user should use a these (you can still manually POST stuff to the API and it will work).
+
+
 ### Zookeeper
 To get Kafka Running a Zookeeper is needed. A simple one Node zK example is provided in the example Folder. But for any usage beyond testing/developing a proper Zookeeper setup should be used. A good example is the Zookeeper Chart in the offical Helm Repo.
 
