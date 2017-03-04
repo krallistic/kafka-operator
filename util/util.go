@@ -164,7 +164,8 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan spec.KafkaClusterWatchEvent, <-
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			fmt.Println("Got Response from WathEndpoint, parsing now", response)
+			fmt.Println("Got Response from WatchEndpoint, parsing now", response)
+			fmt.Println("Response Body: ", response.Body)
 			decoder := json.NewDecoder(response.Body)
 			for {
 				var event spec.KafkaClusterWatchEvent

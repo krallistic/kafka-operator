@@ -1,12 +1,18 @@
 package spec
 
+import (
+	"k8s.io/client-go/pkg/api/v1"
+)
+
 
 type KafkaCluster struct {
 	APIVersion string `json:"apiVersion"`
 	Kind string `json:"kind"`
-	Metadata map[string]string `json:"metadata"`
+	Metadata v1.ObjectMeta `json:"metadata"`
 	Spec KafkaClusterSpec `json:"spec"`
 }
+
+
 
 type KafkaClusterSpec struct {
 	//Amount of Broker Nodes

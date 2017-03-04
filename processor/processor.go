@@ -38,7 +38,7 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 		for {
 			select {
 			case currentEvent := <- rawEventsChannel:
-				fmt.Println("Recieved Raw Event, proceeding: ", currentEvent)
+				fmt.Println("Recieved Event, proceeding: ", currentEvent)
 				switch currentEvent.Type {
 				case "ADDED":
 					fmt.Println("ADDED")
