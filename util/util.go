@@ -34,11 +34,6 @@ var (
 )
 
 
-type KafkaClusterWatchEvent struct {
-	Type string `json:"type"`
-	Object spec.KafkaCluster `json:"object"`
-}
-
 
 type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
@@ -151,9 +146,9 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 	return nil
 }
 
-func (c *ClientUtil)MonitorKafkaEvents() (<-chan KafkaClusterWatchEvent, <-chan error) {
+func (c *ClientUtil)MonitorKafkaEvents() (<-chan spec.KafkaClusterWatchEvent, <-chan error) {
 	errorChannel := make(chan error, 1)
-	eventsChannel := make(chan KafkaClusterWatchEvent)
+	eventsChannel := make(chan spec.KafkaClusterWatchEvent)
 
 	go func() {
 		for {
@@ -172,7 +167,7 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan KafkaClusterWatchEvent, <-chan 
 			fmt.Println("Got Response from WathEndpoint, parsing now", response)
 			decoder := json.NewDecoder(response.Body)
 			for {
-				var event KafkaClusterWatchEvent
+				var event spec.KafkaClusterWatchEvent
 				err = decoder.Decode(&event)
 				if err != nil {
 					fmt.Println("Error decoding response ", err)

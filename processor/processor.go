@@ -2,7 +2,7 @@ package processor
 
 import (
 	k8sclient "k8s.io/client-go/kubernetes"
-	kafkaOperatorSpec "github.com/krallistic/kafka-operator/spec"
+	spec "github.com/krallistic/kafka-operator/spec"
 	"fmt"
 	"github.com/krallistic/kafka-operator/util"
 )
@@ -11,7 +11,7 @@ type Processor struct {
 	client k8sclient.Clientset
 	baseBrokerImage string
 	util util.ClientUtil
-	kafkaClusters map[string]*kafkaOperatorSpec.KafkaCluster
+	kafkaClusters map[string]*spec.KafkaCluster
 }
 
 func New(client k8sclient.Clientset, image string, util util.ClientUtil) (*Processor, error) {
@@ -19,7 +19,7 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil) (*Proce
 		client:client,
 		baseBrokerImage:image,
 		util:util,
-		kafkaClusters:make(map[string]*kafkaOperatorSpec.KafkaCluster),
+		kafkaClusters:make(map[string]*spec.KafkaCluster),
 	}
 	fmt.Println("Created Processor")
 	return p, nil
@@ -45,6 +45,9 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 					p.CreateKafkaCluster(currentEvent.Object)
 				case "MODIFIED":
 					fmt.Println("MODIFIED")
+					p.ChangeKafkaCluster(currentEvent)
+				case "DELETED:":
+					fmt.Println("Got DELETED Event for: ", currentEvent.Object)
 				default:
 					fmt.Println(currentEvent.Type)
 				}
@@ -67,9 +70,14 @@ func (p *Processor) UpdateLocalState() {
 }
 
 
+func (p *Processor) ChangeKafkaCluster(change spec.KafkaClusterWatchEvent) {
+	//TODO disect change, can we get the change from the API?
+	//We need to find somehow whats changed?
+}
 
 
-func (p *Processor) CreateKafkaCluster(clusterSpec kafkaOperatorSpec.KafkaCluster) {
+
+func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	fmt.Println("CreatingKafkaCluster", clusterSpec)
 	fmt.Println("SPEC: ", clusterSpec.Spec)
 	// TODO What happens if connections loss? after a reconnect we get ADDED again :/

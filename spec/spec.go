@@ -22,6 +22,13 @@ type KafkaClusterSpec struct {
 	
 }
 
+
+
+type KafkaClusterWatchEvent struct {
+	Type string `json:"type"`
+	Object KafkaCluster `json:"object"`
+}
+
 type ClusterBrokerSpec struct {
 	Count int32 `json:"count"`
 	Memory int32 `json:"memory"`
