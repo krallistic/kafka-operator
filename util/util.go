@@ -311,11 +311,11 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 								//TODO String replace operator etc
 								Command: []string{"/bin/bash",
 									"-c",
-									"export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).operator.$(NAMESPACE).svc.cluster.local:9092; \n" +
+									fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n" +
 									"set -ex\n" +
 									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n" +
 									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n" +
-									"/etc/confluent/docker/run",
+									"/etc/confluent/docker/run",name),
 									},
 								Env: []v1.EnvVar{
 									v1.EnvVar{
@@ -329,20 +329,6 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 									v1.EnvVar{
 										Name:  "KAFKA_ZOOKEEPER_CONNECT",
 										Value: kafkaClusterSpec.ZookeeperConnect,
-									},
-									//v1.EnvVar{
-									//	Name:  "KAFKA_ADVERTISED_LISTENERS",
-									//	Value: "PLAINTEXT://kafka-0." + kafkaClusterSpec.Name + ".default.svc" + ".cluster.local:9092",
-									//	//TODO not static, genererate Name, or use ENV VAR?
-									//},
-									v1.EnvVar{
-										Name:  "KAFKA_BROKER_ID",
-										Value: "1", //TODO getOrdinal? Can be a String? Hostname?
-
-									},
-									v1.EnvVar{
-										Name: "TEST",
-										Value: "$HOSTNAME.operator.$NAMESPACE.svc.cluster.local:9092",
 									},
 								},
 								Ports: []v1.ContainerPort{

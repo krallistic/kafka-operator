@@ -23,7 +23,10 @@ spec:
     image: confluentinc/cp-kafka:latest
     jmxSidecar: false
 ```
-This object is then picked up by the Operator and lets him create a StatefulSet for the Brokers
+This object is then picked up by the Operator and lets him create a StatefulSet for the Brokers. 
+
+### Zookeeper
+To get Kafka Running a Zookeeper is needed. A simple one Node zK example is provided in the example Folder. But for any usage beyond testing/developing a proper Zookeeper setup should be used. A good example is the Zookeeper Chart in the offical Helm Repo.
 
 
 # Details

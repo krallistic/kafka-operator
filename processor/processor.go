@@ -57,9 +57,17 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 
 		}
 	}()
+}
 
+
+// Searches the API for existing TPR and updates the LocalState
+// Needed, to see what changed?
+func (p *Processor) UpdateLocalState() {
 
 }
+
+
+
 
 func (p *Processor) CreateKafkaCluster(clusterSpec kafkaOperatorSpec.KafkaCluster) {
 	fmt.Println("CreatingKafkaCluster", clusterSpec)

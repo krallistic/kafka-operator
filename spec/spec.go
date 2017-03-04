@@ -27,6 +27,7 @@ type ClusterBrokerSpec struct {
 	Memory int32 `json:"memory"`
 	DiskSpace int32 `json:"diskSpace"` //TODO Option to use GB etc
 	CPU int32 `json:"cpu"`
+	ClientPort int32 `json:"clientPort"`
 }
 
 type KafkaOption struct {
