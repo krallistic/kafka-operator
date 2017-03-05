@@ -4,11 +4,17 @@ metadata:
   name: hello-world-cluster-2
 spec:
     name: operator
+    brokerCount: 2
     brokers:
-        count: 2
-        memory: 1024
-        diskSpace: 50
-        cpu: 1
+        - brokerID: 1
+          memory: 512
+          diskSpace: 25
+          cpu: 0.5
+          topics:
+        - brokerID: 2
+          memory: 1024
+          diskSpace: 50
+          cpu: 1
     kafkaOptions:
        logRetentionHours: 24
     zookeeperConnect: zk-headless.default.svc.cluster.local

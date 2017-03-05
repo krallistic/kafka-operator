@@ -264,6 +264,8 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 	//Check if sts with Name already exists
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(name, c.DefaultOption)
 
+
+	//TODO dont use really a sts set, instead use just PODs? More control over livetime (aka downscaling which) upscaling etc..but more effort?
 	if err != nil {
 		fmt.Println("Error get sts")
 	}
