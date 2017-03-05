@@ -52,3 +52,19 @@ type KafkaClusterWatchEvent struct {
 type KafkaOption struct {
 	LogRetentionHours int `json:"logRetentionHours"`
 }
+
+
+type KafkaEventType int32
+
+const (
+	NEW_CLUSTER KafkaEventType = iota + 1
+	DELTE_CLUSTER
+	UPSIZE_CLUSTER
+	DOWNSIZE_CLUSTER
+	CHANGE_IMAGE
+	CHANGE_BROKER_RESOURCES
+	CHANGE_NAME
+	CHANGE_ZOOKEEPER_CONNECT
+	UNKNOWN_CHANGE
+
+)

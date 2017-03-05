@@ -31,6 +31,27 @@ func ( p *Processor) Run() error {
 	return nil
 }
 
+
+//We detect basic change through the event type, beyond that we use the API server to find differences.
+//Functions compares the KafkaClusterSpec with the real Pods/Services which are there.
+//We do that because otherwise we would have to use a local state to track changes.
+func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaEventType {
+	if event.Type == "ADDED" {
+		return spec.NEW_CLUSTER
+	}
+	if event.Type == "DELETED" {
+		return spec.DELTE_CLUSTER
+	}
+	//Event Type must be MODIFIED Now
+
+	//check IfClusterExist -> NEW_CLUSTER
+	//check if Image/TAG same -> Change_IMAGE
+	//check if BrokerCount same -> Down/Upsize Cluster
+
+	return spec.UNKNOWN_CHANGE
+}
+
+
 func ( p *Processor) WatchKafkaEvents(control chan int) {
 	rawEventsChannel, errorChannel := p.util.MonitorKafkaEvents()
 	fmt.Println("Watching Kafka Events")
