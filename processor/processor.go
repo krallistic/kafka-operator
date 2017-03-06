@@ -70,6 +70,24 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 			select {
 			case currentEvent := <- rawEventsChannel:
 				fmt.Println("Recieved Event, proceeding: ", currentEvent)
+				switch p.DetectChangeType(currentEvent) {
+				case spec.NEW_CLUSTER:
+					fmt.Println("ADDED")
+					p.CreateKafkaCluster(currentEvent.Object)
+				case spec.DELTE_CLUSTER:
+					fmt.Println("Delete Cluster")
+					//TODO
+				case spec.CHANGE_IMAGE:
+					fmt.Println("Change Image")
+
+				case spec.UPSIZE_CLUSTER:
+					fmt.Println("Upsize Cluster")
+				case spec.DOWNSIZE_CLUSTER:
+					fmt.Println("Downsize Cluster")
+				case spec.CHANGE_ZOOKEEPER_CONNECT:
+					fmt.Println("Trying to change zookeeper connect, not supported currently")
+				}
+				
 				switch currentEvent.Type {
 				case "ADDED":
 					fmt.Println("ADDED")
