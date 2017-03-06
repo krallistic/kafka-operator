@@ -36,13 +36,23 @@ func ( p *Processor) Run() error {
 //Functions compares the KafkaClusterSpec with the real Pods/Services which are there.
 //We do that because otherwise we would have to use a local state to track changes.
 func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaEventType {
+	//TODO multiple changes in one Update? right now we only detect one change
 	if event.Type == "ADDED" {
 		return spec.NEW_CLUSTER
 	}
 	if event.Type == "DELETED" {
 		return spec.DELTE_CLUSTER
+	//EVENT type must be modfied now
+	} else if p.util.BrokerStatefulSetExist(event.Object.Spec){
+		return spec.NEW_CLUSTER
+	} else if p.util.BrokerStSImageUpdate(event.Object.Spec) {
+		return spec.CHANGE_IMAGE
+	} else if p.util.BrokerStSUpsize(event.Object.Spec) {
+		return spec.UPSIZE_CLUSTER
+	} else if p.util.BrokerStSDownsize(event.Object.Spec) {
+		fmt.Println("No Downsizing currently supported, TODO without dataloss?")
 	}
-	//Event Type must be MODIFIED Now
+
 
 	//check IfClusterExist -> NEW_CLUSTER
 	//check if Image/TAG same -> Change_IMAGE

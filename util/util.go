@@ -254,11 +254,43 @@ func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 }
 
 
+//TODO caching of the STS
+func (c *ClientUtil) BrokerStatefulSetExist(kafkaClusterSpec spec.KafkaClusterSpec) bool {
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(kafkaClusterSpec.Name, c.DefaultOption)
+	if err != nil ||  len(statefulSet.Name) == 0 {
+		return false
+	}
+	return true
+}
+
+func (c *ClientUtil) BrokerStSImageUpdate(kafkaClusterSpec spec.KafkaClusterSpec) bool {
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(kafkaClusterSpec.Name, c.DefaultOption)
+	if err != nil {
+		fmt.Println("TODO error?")
+	}
+	//TODO multiple Containers
+	if statefulSet.Spec.Template.Spec.Containers[0].Image != kafkaClusterSpec.Image {
+		return true
+	}
+	return false
+}
+
+func (c *ClientUtil) BrokerStSUpsize(newSpec spec.KafkaClusterSpec) bool {
+	statefulSet, _ := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
+	return *statefulSet.Spec.Replicas < newSpec.BrokerCount
+}
+
+func (c *ClientUtil) BrokerStSDownsize(newSpec spec.KafkaClusterSpec) bool {
+	statefulSet, _ := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
+	return *statefulSet.Spec.Replicas > newSpec.BrokerCount
+}
+
+
 func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterSpec) error {
 
 
 	name := kafkaClusterSpec.Name
-	replicas := kafkaClusterSpec.Brokers.Count
+	replicas := kafkaClusterSpec.BrokerCount
 	image := kafkaClusterSpec.Image
 
 	//Check if sts with Name already exists
