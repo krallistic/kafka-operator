@@ -75,30 +75,19 @@ func ( p *Processor) WatchKafkaEvents(control chan int) {
 					fmt.Println("ADDED")
 					p.CreateKafkaCluster(currentEvent.Object)
 				case spec.DELTE_CLUSTER:
-					fmt.Println("Delete Cluster")
-					//TODO
+					fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Object, currentEvent.Object.Spec)
+					//TODO check if spec is aviable on delete event...
+					p.util.DeleteKafkaCluster(currentEvent.Object.Spec)
 				case spec.CHANGE_IMAGE:
-					fmt.Println("Change Image")
-
+					fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
+					p.util.UpdateBrokerStS(currentEvent.Object.Spec)
 				case spec.UPSIZE_CLUSTER:
-					fmt.Println("Upsize Cluster")
+					fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
+					p.util.UpdateBrokerStS(currentEvent.Object.Spec)
 				case spec.DOWNSIZE_CLUSTER:
 					fmt.Println("Downsize Cluster")
 				case spec.CHANGE_ZOOKEEPER_CONNECT:
 					fmt.Println("Trying to change zookeeper connect, not supported currently")
-				}
-				
-				switch currentEvent.Type {
-				case "ADDED":
-					fmt.Println("ADDED")
-					p.CreateKafkaCluster(currentEvent.Object)
-				case "MODIFIED":
-					fmt.Println("MODIFIED")
-					p.ChangeKafkaCluster(currentEvent)
-				case "DELETED:":
-					fmt.Println("Got DELETED Event for: ", currentEvent.Object)
-				default:
-					fmt.Println(currentEvent.Type)
 				}
 			case err := <- errorChannel:
 				println("Error Channel", err)

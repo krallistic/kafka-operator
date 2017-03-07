@@ -285,16 +285,104 @@ func (c *ClientUtil) BrokerStSDownsize(newSpec spec.KafkaClusterSpec) bool {
 	return *statefulSet.Spec.Replicas > newSpec.BrokerCount
 }
 
-
-func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterSpec) error {
-
+func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *appsv1Beta1.StatefulSet {
 
 	name := kafkaClusterSpec.Name
 	replicas := kafkaClusterSpec.BrokerCount
 	image := kafkaClusterSpec.Image
 
+	statefulSet := &appsv1Beta1.StatefulSet{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "kafka",
+			Labels: map[string]string{
+				"component": "kafka",
+				"creator": "kafkaOperator",
+				"role":      "data",
+				"name": name,
+			},
+		},
+		Spec: appsv1Beta1.StatefulSetSpec{
+			Replicas: &replicas,
+
+			ServiceName: kafkaClusterSpec.Name, //TODO variable svc name, or depnedent on soemthing
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: v1.ObjectMeta{
+					Labels: map[string]string{
+						"component": "kafka",
+						"creator": "kafkaOperator",
+						"role": "data",
+						"name": name,
+					},
+					Annotations: map[string]string{
+						"pod.beta.kubernetes.io/init-containers": "[ " +
+							"]",
+					},
+				},
+
+				Spec:v1.PodSpec{
+
+					Containers: []v1.Container{
+						v1.Container{
+							Name: "kafka",
+							Image: image,
+							//TODO String replace operator etc
+							Command: []string{"/bin/bash",
+									  "-c",
+								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n" +
+									"set -ex\n" +
+									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n" +
+									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n" +
+									"/etc/confluent/docker/run",name),
+							},
+							Env: []v1.EnvVar{
+								v1.EnvVar{
+									Name: "NAMESPACE",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "metadata.namespace",
+										},
+									},
+								},
+								v1.EnvVar{
+									Name:  "KAFKA_ZOOKEEPER_CONNECT",
+									Value: kafkaClusterSpec.ZookeeperConnect,
+								},
+							},
+							Ports: []v1.ContainerPort{
+								v1.ContainerPort{
+									Name: "kafka",
+									ContainerPort: 9092,
+								},
+							},
+
+						},
+					},
+				},
+			},
+		},
+	}
+	return statefulSet
+}
+
+
+func (c *ClientUtil) UpdateBrokerStS(newSpec spec.KafkaClusterSpec) error {
+
+	statefulSet := c.createStsFromSpec(newSpec)
+	_ ,err := c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
+
+	return err
+}
+
+func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
+
+	return nil
+}
+
+
+func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterSpec) error {
+
 	//Check if sts with Name already exists
-	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(name, c.DefaultOption)
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(kafkaClusterSpec.Name, c.DefaultOption)
 
 
 	//TODO dont use really a sts set, instead use just PODs? More control over livetime (aka downscaling which) upscaling etc..but more effort?
@@ -304,76 +392,7 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 	if len(statefulSet.Name) == 0 {
 		fmt.Println("STS dosnt exist, creating")
 
-		statefulSet := &appsv1Beta1.StatefulSet{
-			ObjectMeta: v1.ObjectMeta{
-				Name: "kafka",
-				Labels: map[string]string{
-					"component": "kafka",
-					"creator": "kafkaOperator",
-					"role":      "data",
-					"name": name,
-				},
-			},
-			Spec: appsv1Beta1.StatefulSetSpec{
-				Replicas: &replicas,
-
-				ServiceName: kafkaClusterSpec.Name, //TODO variable svc name, or depnedent on soemthing
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: v1.ObjectMeta{
-						Labels: map[string]string{
-							"component": "kafka",
-							"creator": "kafkaOperator",
-							"role": "data",
-							"name": name,
-						},
-						Annotations: map[string]string{
-							"pod.beta.kubernetes.io/init-containers": "[ " +
-								"]",
-						},
-					},
-
-					Spec:v1.PodSpec{
-
-						Containers: []v1.Container{
-							v1.Container{
-								Name: "kafka",
-								Image: image,
-								//TODO String replace operator etc
-								Command: []string{"/bin/bash",
-									"-c",
-									fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n" +
-									"set -ex\n" +
-									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n" +
-									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n" +
-									"/etc/confluent/docker/run",name),
-									},
-								Env: []v1.EnvVar{
-									v1.EnvVar{
-										Name: "NAMESPACE",
-										ValueFrom: &v1.EnvVarSource{
-											FieldRef: &v1.ObjectFieldSelector{
-												FieldPath: "metadata.namespace",
-											},
-										},
-									},
-									v1.EnvVar{
-										Name:  "KAFKA_ZOOKEEPER_CONNECT",
-										Value: kafkaClusterSpec.ZookeeperConnect,
-									},
-								},
-								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
-										Name: "kafka",
-										ContainerPort: 9092,
-									},
-								},
-
-							},
-						},
-					},
-				},
-			},
-		}
+		statefulSet := c.createStsFromSpec(kafkaClusterSpec)
 
 		fmt.Println(statefulSet)
 		_, err := c.KubernetesClient.StatefulSets(namespace).Create(statefulSet)
