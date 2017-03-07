@@ -19,4 +19,5 @@ spec:
        logRetentionHours: 24
     zookeeperConnect: zk-headless.default.svc.cluster.local
     image: confluentinc/cp-kafka:latest
+    storageClass: emptyDir
     jmxSidecar: false

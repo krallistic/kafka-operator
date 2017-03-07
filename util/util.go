@@ -187,6 +187,13 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan spec.KafkaClusterWatchEvent, <-
 	return eventsChannel, errorChannel
 }
 
+func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
+	//for every replica create storage image?
+	//except for hostPath, emptyDir
+	//let Sts create PV?
+
+}
+
 func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
 	//Check if already exists?
 	svc, err := c.KubernetesClient.Services(namespace).Get(name, c.DefaultOption)
@@ -285,6 +292,8 @@ func (c *ClientUtil) BrokerStSDownsize(newSpec spec.KafkaClusterSpec) bool {
 	return *statefulSet.Spec.Replicas > newSpec.BrokerCount
 }
 
+
+
 func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *appsv1Beta1.StatefulSet {
 
 	name := kafkaClusterSpec.Name
@@ -374,6 +383,11 @@ func (c *ClientUtil) UpdateBrokerStS(newSpec spec.KafkaClusterSpec) error {
 }
 
 func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
+	//Delete Services
+
+	//Delete StatefulSet
+
+	//Delete Volumes
 
 	return nil
 }

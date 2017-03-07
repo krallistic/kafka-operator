@@ -25,6 +25,7 @@ type KafkaClusterSpec struct {
 	
 	ZookeeperConnect string `json:"zookeeperConnect"`
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	StorageClass string `json:"storageClass"` //TODO use k8s type?
 
 	
 }
