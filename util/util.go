@@ -194,8 +194,9 @@ func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
 
 }
 
-func (c *ClientUtil) CreateBrokerService(name string, headless bool) error {
+func (c *ClientUtil) CreateBrokerService(newSpec spec.KafkaClusterSpec, headless bool) error {
 	//Check if already exists?
+	name := newSpec.Name
 	svc, err := c.KubernetesClient.Services(namespace).Get(name, c.DefaultOption)
 	if err != nil {
 		fmt.Println("error while talking to k8s api: ", err)
