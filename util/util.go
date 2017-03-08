@@ -383,13 +383,26 @@ func (c *ClientUtil) UpdateBrokerStS(newSpec spec.KafkaClusterSpec) error {
 }
 
 func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
-	//Delete Services
 
-	//Delete StatefulSet
+	var gracePeriod int64
+	gracePeriod = 30
+	deleteOption := v1.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		OrphanDependents: &false, //TODO check?
+	}
+
+	//Delete Services
+	err := c.KubernetesClient.Services(namespace).Delete(oldSpec.Name, &deleteOption)
+
+	//Delete Stateful Broker set
+	err = c.KubernetesClient.StatefulSets(namespace).Delete(oldSpec.Name, &deleteOption)
 
 	//Delete Volumes
+	//TODO when volumes are implemented
 
-	return nil
+
+	//TODO better Error handling
+	return err
 }
 
 

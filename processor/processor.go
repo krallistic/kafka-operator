@@ -115,6 +115,7 @@ func (p *Processor) ChangeKafkaCluster(change spec.KafkaClusterWatchEvent) {
 
 
 
+
 func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	fmt.Println("CreatingKafkaCluster", clusterSpec)
 	fmt.Println("SPEC: ", clusterSpec.Spec)
