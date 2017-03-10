@@ -4,7 +4,7 @@ metadata:
   name: hello-world-cluster-2
 spec:
     name: operator
-    brokerCount: 2
+    brokerCount: 3
     brokers:
         - brokerID: 1
           memory: 512
