@@ -127,6 +127,8 @@ func ( p *Processor) WatchKafkaEvents() {
 			case currentEvent := <- p.watchEvents:
 				classifiedEvent := p.DetectChangeType(currentEvent)
 				p.clusterEvents <- classifiedEvent
+			case clusterEvent := <- p.clusterEvents:
+				p.processKafkaEvent(clusterEvent)
 			case err := <- p.errors:
 				println("Error Channel", err)
 			case <-p.control:
