@@ -29,7 +29,7 @@ This object is then picked up by the Operator and lets him create a StatefulSet 
 There are a couple of open Task/Issues, this is mainly just for me tracking progress:
 
 - [ ] Resisze Clusters (without Data Rebalancing)
-- [ ] Delete Cluster
+- [x] Delete Cluster
 - [ ] Dokumentation, Vendoring and Testing
 - [ ] Use Ressource (K8s and kafka Options)
 - [ ] Monitoring with JMX Sidecar
