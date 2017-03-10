@@ -25,8 +25,8 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, control
 		baseBrokerImage:image,
 		util:util,
 		kafkaClusters:make(map[string]*spec.KafkaCluster),
-		watchEvents: make(chan spec.KafkaClusterWatchEvent),
-		clusterEvents: make(chan spec.KafkaClusterEvent),
+		watchEvents: make(chan spec.KafkaClusterWatchEvent, 10),
+		clusterEvents: make(chan spec.KafkaClusterEvent, 10),
 		control: control,
 		errors: make(chan error),
 	}
@@ -45,6 +45,8 @@ func ( p *Processor) Run() error {
 //Functions compares the KafkaClusterSpec with the real Pods/Services which are there.
 //We do that because otherwise we would have to use a local state to track changes.
 func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaClusterEvent {
+	fmt.Println("DetectChangeType: ", event)
+
 	//TODO multiple changes in one Update? right now we only detect one change
 	clusterEvent := spec.KafkaClusterEvent{
 		Cluster: event.Object,
@@ -111,6 +113,8 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("Downsize Cluster")
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
 		fmt.Println("Trying to change zookeeper connect, not supported currently")
+	case spec.CLEANUP_EVENT:
+		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
 	}
 }
 
