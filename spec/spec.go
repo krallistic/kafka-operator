@@ -34,7 +34,7 @@ type KafkaBrokerSpec struct {
 	BrokerID int32 `json:"brokerID"`
 	Memory int32 `json:"memory"`
 	DiskSpace int32 `json:"diskSpace"` //TODO Option to use GB etc
-	CPU int32 `json:"cpu"`
+	CPU float64 `json:"cpu"`
 	ClientPort int32 `json:"clientPort"`
 	Topics map[string]string `json:"topics"`
 }

@@ -114,7 +114,7 @@ func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
 
 	return nil, nil
 }
-
+/// Create a the thirdparty ressource inside the Kubernetws Cluster
 func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 	tprResult, _ := c.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", c.DefaultOption)
 	if len(tprResult.Name) == 0 {
@@ -146,6 +146,8 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 	return nil
 }
 
+
+//
 func (c *ClientUtil)MonitorKafkaEvents() (<-chan spec.KafkaClusterWatchEvent, <-chan error) {
 	errorChannel := make(chan error, 1)
 	eventsChannel := make(chan spec.KafkaClusterWatchEvent)
@@ -257,7 +259,6 @@ func (c *ClientUtil) CreateBrokerService(newSpec spec.KafkaClusterSpec, headless
 		//TODO maybe check for correct service?
 	}
 
-
 	return nil
 }
 
@@ -277,7 +278,8 @@ func (c *ClientUtil) BrokerStSImageUpdate(kafkaClusterSpec spec.KafkaClusterSpec
 		fmt.Println("TODO error?")
 	}
 	//TODO multiple Containers
-	if statefulSet.Spec.Template.Spec.Containers[0].Image != kafkaClusterSpec.Image {
+
+	if (len(statefulSet.Spec.ServiceName) == 0) && (statefulSet.Spec.Template.Spec.Containers[0].Image != kafkaClusterSpec.Image) {
 		return true
 	}
 	return false
@@ -303,7 +305,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 
 	statefulSet := &appsv1Beta1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{
-			Name: "kafka",
+			Name: name,
 			Labels: map[string]string{
 				"component": "kafka",
 				"creator": "kafkaOperator",
@@ -386,18 +388,37 @@ func (c *ClientUtil) UpdateBrokerStS(newSpec spec.KafkaClusterSpec) error {
 func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
 
 	var gracePeriod int64
-	gracePeriod = 30
+	gracePeriod = 10
+	//var orphan bool
+	//orphan = true
 	deleteOption := v1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
-		OrphanDependents: &false, //TODO check?
 	}
 
 	//Delete Services
 	err := c.KubernetesClient.Services(namespace).Delete(oldSpec.Name, &deleteOption)
+	if err != nil {
+		fmt.Println("Error while deleting Broker Service: ", err)
+	}
+	
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(oldSpec.Name, c.DefaultOption)//Scaling Replicas down to Zero
+	if (len(statefulSet.Name) == 0 ) && ( err != nil) {
+		fmt.Println("Error while getting StS from k8s: ", err)
+	}
 
-	//Delete Stateful Broker set
-	err = c.KubernetesClient.StatefulSets(namespace).Delete(oldSpec.Name, &deleteOption)
+	var replicas int32
+	replicas = 0
+	statefulSet.Spec.Replicas = &replicas
 
+	_, err = c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
+	if err != nil {
+		fmt.Println("Error while scaling down Broker Sts: ", err)
+	}
+	//TODO maybe sleep, yes we need a sleep
+	err =  c.KubernetesClient.StatefulSets(namespace).Delete(oldSpec.Name, &deleteOption)
+	if err != nil {
+		fmt.Println("Error while deleting sts")
+	}
 	//Delete Volumes
 	//TODO when volumes are implemented
 
