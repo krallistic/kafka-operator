@@ -55,14 +55,8 @@ func Main() int {
 	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
 
 
-	proccessor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient)
-	proccessor.WatchKafkaEvents(controlChannel)
-
-
-
-
-
-
+	proccessor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, controlChannel)
+	proccessor.WatchKafkaEvents()
 
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)

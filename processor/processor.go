@@ -5,6 +5,7 @@ import (
 	spec "github.com/krallistic/kafka-operator/spec"
 	"fmt"
 	"github.com/krallistic/kafka-operator/util"
+	"time"
 )
 
 type Processor struct {
@@ -12,14 +13,22 @@ type Processor struct {
 	baseBrokerImage string
 	util util.ClientUtil
 	kafkaClusters map[string]*spec.KafkaCluster
+	watchEvents chan spec.KafkaClusterWatchEvent
+	clusterEvents chan spec.KafkaClusterEvent
+	control chan int
+	errors chan error
 }
 
-func New(client k8sclient.Clientset, image string, util util.ClientUtil) (*Processor, error) {
+func New(client k8sclient.Clientset, image string, util util.ClientUtil, control chan int) (*Processor, error) {
 	p := &Processor{
 		client:client,
 		baseBrokerImage:image,
 		util:util,
 		kafkaClusters:make(map[string]*spec.KafkaCluster),
+		watchEvents: make(chan spec.KafkaClusterWatchEvent),
+		clusterEvents: make(chan spec.KafkaClusterEvent),
+		control: control,
+		errors: make(chan error),
 	}
 	fmt.Println("Created Processor")
 	return p, nil
@@ -35,53 +44,69 @@ func ( p *Processor) Run() error {
 //We detect basic change through the event type, beyond that we use the API server to find differences.
 //Functions compares the KafkaClusterSpec with the real Pods/Services which are there.
 //We do that because otherwise we would have to use a local state to track changes.
-func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaEventType {
+func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaClusterEvent {
 	//TODO multiple changes in one Update? right now we only detect one change
+	clusterEvent := spec.KafkaClusterEvent{
+		Cluster: event.Object,
+	}
 	if event.Type == "ADDED" {
-		return spec.NEW_CLUSTER
+		clusterEvent.Type = spec.NEW_CLUSTER
+		return clusterEvent
 	}
 	if event.Type == "DELETED" {
-		return spec.DELTE_CLUSTER
+		clusterEvent.Type = spec.DELTE_CLUSTER
+		return clusterEvent
 	//EVENT type must be modfied now
 	} else if p.util.BrokerStatefulSetExist(event.Object.Spec){
-		return spec.NEW_CLUSTER
+		clusterEvent.Type = spec.NEW_CLUSTER
+		return clusterEvent
 	} else if p.util.BrokerStSImageUpdate(event.Object.Spec) {
-		return spec.CHANGE_IMAGE
+		clusterEvent.Type = spec.CHANGE_IMAGE
+		return clusterEvent
 	} else if p.util.BrokerStSUpsize(event.Object.Spec) {
-		return spec.UPSIZE_CLUSTER
+		clusterEvent.Type = spec.UPSIZE_CLUSTER
+		return clusterEvent
 	} else if p.util.BrokerStSDownsize(event.Object.Spec) {
 		fmt.Println("No Downsizing currently supported, TODO without dataloss?")
-		return spec.DOWNSIZE_CLUSTER
+		clusterEvent.Type = spec.DOWNSIZE_CLUSTER
+		return clusterEvent
 	}
-
 
 	//check IfClusterExist -> NEW_CLUSTER
 	//check if Image/TAG same -> Change_IMAGE
 	//check if BrokerCount same -> Down/Upsize Cluster
 
-	return spec.UNKNOWN_CHANGE
+	clusterEvent.Type = spec.UNKNOWN_CHANGE
+	return clusterEvent
 }
 
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
-func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterWatchEvent) {
+func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	fmt.Println("Recieved Event, proceeding: ", currentEvent)
-	switch p.DetectChangeType(currentEvent) {
+	switch currentEvent.Type  {
 	case spec.NEW_CLUSTER:
 		fmt.Println("ADDED")
-		p.CreateKafkaCluster(currentEvent.Object)
+		p.CreateKafkaCluster(currentEvent.Cluster)
 	case spec.DELTE_CLUSTER:
-		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Object, currentEvent.Object.Spec)
-		//TODO check if spec is aviable on delete event...
-		p.util.DeleteKafkaCluster(currentEvent.Object.Spec)
+		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Cluster, currentEvent.Cluster.Spec)
+		p.util.DeleteKafkaCluster(currentEvent.Cluster.Spec)
+		go func() {
+			time.Sleep(5 * time.Minute)
+			//TODO dynamic sleep, depending till sts is completely scaled down.
+			clusterEvent := spec.KafkaClusterEvent{
+				Cluster: currentEvent.Cluster,
+				Type: spec.CLEANUP_EVENT,
+			}
+			p.clusterEvents <- clusterEvent
+		}()
 	case spec.CHANGE_IMAGE:
 		fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
-		p.util.UpdateBrokerStS(currentEvent.Object.Spec)
+		p.util.UpdateBrokerStS(currentEvent.Cluster.Spec)
 	case spec.UPSIZE_CLUSTER:
 		fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
-		p.util.UpdateBrokerStS(currentEvent.Object.Spec)
+		p.util.UpdateBrokerStS(currentEvent.Cluster.Spec)
 	case spec.UNKNOWN_CHANGE:
 		fmt.Println("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
-
 	case spec.DOWNSIZE_CLUSTER:
 		fmt.Println("Downsize Cluster")
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
@@ -92,18 +117,19 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterWatchEvent) 
 
 //Creates inside a goroutine a watch channel on the KakkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside
-func ( p *Processor) WatchKafkaEvents(control chan int) {
-	rawEventsChannel, errorChannel := p.util.MonitorKafkaEvents()
+func ( p *Processor) WatchKafkaEvents() {
+	p.util.MonitorKafkaEvents(p.watchEvents, p.errors)
 	fmt.Println("Watching Kafka Events")
 	go func() {
 		for {
 
 			select {
-			case currentEvent := <- rawEventsChannel:
-				p.processKafkaEvent(currentEvent)
-			case err := <- errorChannel:
+			case currentEvent := <- p.watchEvents:
+				classifiedEvent := p.DetectChangeType(currentEvent)
+				p.clusterEvents <- classifiedEvent
+			case err := <- p.errors:
 				println("Error Channel", err)
-			case <-control:
+			case <-p.control:
 				fmt.Println("Recieved Something on Control Channel, shutting down: ")
 				return
 			}

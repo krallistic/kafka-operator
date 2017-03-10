@@ -148,10 +148,7 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 
 
 //
-func (c *ClientUtil)MonitorKafkaEvents() (<-chan spec.KafkaClusterWatchEvent, <-chan error) {
-	errorChannel := make(chan error, 1)
-	eventsChannel := make(chan spec.KafkaClusterWatchEvent)
-
+func (c *ClientUtil)MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, errorChannel chan error)  {
 	go func() {
 		for {
 			tr := &http.Transport{
@@ -184,9 +181,6 @@ func (c *ClientUtil)MonitorKafkaEvents() (<-chan spec.KafkaClusterWatchEvent, <-
 			time.Sleep(2 * time.Second)
 		}
 	}()
-
-
-	return eventsChannel, errorChannel
 }
 
 func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
@@ -400,7 +394,7 @@ func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
 	if err != nil {
 		fmt.Println("Error while deleting Broker Service: ", err)
 	}
-	
+
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(oldSpec.Name, c.DefaultOption)//Scaling Replicas down to Zero
 	if (len(statefulSet.Name) == 0 ) && ( err != nil) {
 		fmt.Println("Error while getting StS from k8s: ", err)
@@ -415,10 +409,10 @@ func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
 		fmt.Println("Error while scaling down Broker Sts: ", err)
 	}
 	//TODO maybe sleep, yes we need a sleep
-	err =  c.KubernetesClient.StatefulSets(namespace).Delete(oldSpec.Name, &deleteOption)
-	if err != nil {
-		fmt.Println("Error while deleting sts")
-	}
+	//err =  c.KubernetesClient.StatefulSets(namespace).Delete(oldSpec.Name, &deleteOption)
+	//if err != nil {
+	//	fmt.Println("Error while deleting sts")
+	//}
 	//Delete Volumes
 	//TODO when volumes are implemented
 

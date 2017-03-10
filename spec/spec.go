@@ -55,20 +55,31 @@ type KafkaOption struct {
 }
 
 
+//No json needed since internal Event type.
+type KafkaClusterEvent struct {
+	Type KafkaEventType
+	Cluster KafkaCluster
+}
+
+
 type KafkaEventType int32
 
 
 const (
-NEW_CLUSTER KafkaEventType = iota + 1
-DELTE_CLUSTER
-UPSIZE_CLUSTER
-DOWNSIZE_CLUSTER
-CHANGE_IMAGE
-CHANGE_BROKER_RESOURCES
-CHANGE_NAME
-CHANGE_ZOOKEEPER_CONNECT
-BROKER_CONFIG_CHANGE
-UNKNOWN_CHANGE
-RECONSTILATION_EVENT
+	NEW_CLUSTER KafkaEventType = iota + 1
+	DELTE_CLUSTER
+	UPSIZE_CLUSTER
+	DOWNSIZE_CLUSTER
+	CHANGE_IMAGE
+	CHANGE_BROKER_RESOURCES
+	CHANGE_NAME
+	CHANGE_ZOOKEEPER_CONNECT
+	BROKER_CONFIG_CHANGE
+	UNKNOWN_CHANGE
+	RECONSTILATION_EVENT
+	//Cleanup event which get emmised after a Cluster Delete.
+	//Its ensure the deletion of the Statefulset after it has been scaled down.
+	CLEANUP_EVENT
+
 )
 
