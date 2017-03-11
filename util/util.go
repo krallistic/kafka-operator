@@ -371,12 +371,36 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 }
 
 
-func (c *ClientUtil) UpdateBrokerStS(newSpec spec.KafkaClusterSpec) error {
+func (c *ClientUtil) UpsizeBrokerStS(newSpec spec.KafkaClusterSpec) error {
 
-	statefulSet := c.createStsFromSpec(newSpec)
-	_ ,err := c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
+	if err != nil ||  len(statefulSet.Name) == 0 {
+		return err
+	}
+	statefulSet.Spec.Replicas = &newSpec.BrokerCount
+	_ ,err = c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
+
+	if err != nil {
+		fmt.Println("Error while updating Broker Count")
+	}
 
 	return err
+}
+
+func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) {
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
+	if err != nil ||  len(statefulSet.Name) == 0 {
+		return
+	}
+	statefulSet.Spec.Template.Spec.Containers[0].Image = newSpec.Image
+
+	_ ,err = c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
+
+	if err != nil {
+		fmt.Println("Error while updating Broker Count")
+	}
+
+	return
 }
 
 func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {

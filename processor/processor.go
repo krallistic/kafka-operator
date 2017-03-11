@@ -103,10 +103,10 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		}()
 	case spec.CHANGE_IMAGE:
 		fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
-		p.util.UpdateBrokerStS(currentEvent.Cluster.Spec)
+		p.util.UpdateBrokerImage(currentEvent.Cluster.Spec)
 	case spec.UPSIZE_CLUSTER:
 		fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
-		p.util.UpdateBrokerStS(currentEvent.Cluster.Spec)
+		p.util.UpsizeBrokerStS(currentEvent.Cluster.Spec)
 	case spec.UNKNOWN_CHANGE:
 		fmt.Println("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
 	case spec.DOWNSIZE_CLUSTER:
