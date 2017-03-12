@@ -1,0 +1,10 @@
+{
+    "dependencies": {
+        "github.com/Shopify/sarama": {
+            "branch": "master"
+        },
+        "k8s.io/client-go": {
+            "branch": "master"
+        }
+    }
+}
