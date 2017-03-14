@@ -1,0 +1,23 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kafka-operator
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: kafka-operator
+        type: operator
+    spec:
+      containers:
+      - name: operator
+        image: krallistic/kafka-operator:v0.0.2
+        args:
+
+        imagePullPolicy: Always
+      - name: kubectlproxy
+        #TODO create own with newer version
+        image: kelseyhightower/kubectl:1.4.0
+        args:
+          - "proxy -p 8080"
