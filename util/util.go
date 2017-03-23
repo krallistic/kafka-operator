@@ -45,6 +45,7 @@ func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
 
 	client, err := newKubeClient(kubeConfigFile)
 
+
 	if err != nil {
 		fmt.Println("Error, could not Init Kubernetes Client")
 		return nil, err
@@ -66,7 +67,8 @@ func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 
 	// Should we use in cluster or out of cluster config
 	if len(kubeCfgFile) == 0 {
-		fmt.Println("Using InCluster k8s config")
+		fmt.Println("Using InCluster k8s without a kubeconfig")
+		//Depends on k8s env and service account token set.
 		cfg, err := rest.InClusterConfig()
 
 		if err != nil {
@@ -310,7 +312,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 		Spec: appsv1Beta1.StatefulSetSpec{
 			Replicas: &replicas,
 
-			ServiceName: kafkaClusterSpec.Name, //TODO variable svc name, or depnedent on soemthing
+			ServiceName: kafkaClusterSpec.Name,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: map[string]string{
@@ -401,6 +403,31 @@ func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) {
 	}
 
 	return
+}
+
+func (c *ClientUtil) CreatePersistentVolumes(kafkaClusterSpec spec.KafkaClusterSpec) error{
+	fmt.Println("Creating Persistent Volumes for KafkaCluster")
+
+	pv, err := c.KubernetesClient.PersistentVolumes().Get("testpv-1", c.DefaultOption)
+	if err != nil  {
+		return err
+	}
+	if len(pv.Name) == 0 {
+		fmt.Println("PersistentVolume dosnt exist, creating")
+		new_pv := v1.PersistentVolume{
+			ObjectMeta: v1.ObjectMeta{
+				Name:"test-1",
+			},
+			Spec: v1.PersistentVolumeSpec{
+				//AccessModes:{v1.ReadWriteOnce},
+			},
+		}
+		fmt.Println(new_pv)
+	}
+
+
+	return nil
+
 }
 
 func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {

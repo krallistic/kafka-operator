@@ -30,7 +30,6 @@ func init() {
 	flag.StringVar(&masterHost, "masterhost", "http://localhost:8080", "Full url to kubernetes api server")
 	flag.StringVar(&image, "image", "confluentinc/cp-kafka:latest", "Image to use for Brokers")
 	//flag.StringVar(&zookeerConnect, "zookeeperConnect", "zk-0.zk-headless.default.svc.cluster.local:2181", "Connect String to zK, if no string is give a custom zookeeper ist deployed")
-	//TODO Broker Image&Zookeeper over tpr or Flag?
 	flag.Parse()
 }
 
@@ -44,20 +43,15 @@ func Main() int {
 	fmt.Println("kubeConfigFile Location: ", kubeConfigFile)
 	k8sclient, err := util.New(kubeConfigFile, masterHost)
 	if err != nil {
-		fmt.Println("Error Initilizing kubernetes client: ", err)
+		fmt.Println("Error initilizing kubernetes client: ", err)
 	}
 	fmt.Println(k8sclient)
-	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", meta_v1.GetOptions{}))
+
 	k8sclient.CreateKubernetesThirdPartyResource()
-	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafkaCluster.operator.com", meta_v1.GetOptions{}))
-	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("kafka-cluster.operator.com", meta_v1.GetOptions{}))
-
-	fmt.Println(k8sclient.KubernetesClient.ThirdPartyResources().Get("ElasticsearchCluster", meta_v1.GetOptions{}))
 	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
-
-
-	proccessor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, controlChannel)
-	proccessor.WatchKafkaEvents()
+	
+	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, controlChannel)
+	processor.WatchKafkaEvents()
 
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)
@@ -70,13 +64,10 @@ func Main() int {
 
 		}
 	}
-	fmt.Println("Existing now")
+	fmt.Println("Exiting now")
 	//TODO Eventually cleanup?
 
-
 	return 0
-
-
 }
 
 
