@@ -13,11 +13,14 @@ spec:
       containers:
       - name: operator
         image: krallistic/kafka-operator:v0.0.2
-        args:
 
-        imagePullPolicy: Always
-      - name: kubectlproxy
-        #TODO create own with newer version
-        image: kelseyhightower/kubectl:1.4.0
+#        imagePullPolicy: Always
+      - name: kubectl
+        image: gcr.io/google_containers/hyperkube:v1.5.2
+        command:
+          - "/hyperkube"
         args:
-          - "proxy -p 8080"
+          - "kubectl"
+          - "proxy"
+          - "-p"
+          - "8080"
