@@ -3,13 +3,13 @@
 
 .PHONY: all build container push clean test
 
-TAG ?= 0.0.1
+TAG ?= v0.0.2
 PREFIX ?= krallistic
 
 all: container
 
 build:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/operator/main.go
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o operator cmd/operator/main.go
 
 container: build
 	docker build -t $(PREFIX)/kafka-operator:$(TAG) .
