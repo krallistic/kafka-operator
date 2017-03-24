@@ -6,7 +6,7 @@ import (
 	"flag"
 	"github.com/krallistic/kafka-operator/util"
 
-	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
+
 	"os"
 	"syscall"
 	"github.com/krallistic/kafka-operator/processor"

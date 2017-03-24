@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"time"
 	"encoding/json"
+	"k8s.io/client-go/pkg/api/resource"
 )
 
 const (
@@ -362,6 +363,11 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 									ContainerPort: 9092,
 								},
 							},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU: *resource.NewQuantity(spe, resource.DecimalSI),
+								},
+							},
 
 						},
 					},
@@ -419,8 +425,13 @@ func (c *ClientUtil) CreatePersistentVolumes(kafkaClusterSpec spec.KafkaClusterS
 				Name:"test-1",
 			},
 			Spec: v1.PersistentVolumeSpec{
-				//AccessModes:{v1.ReadWriteOnce},
+				AccessModes:[]v1.PersistentVolumeAccessMode{
+					v1.ReadWriteOnce,
+				},
+				//Capacity: Reso
+
 			},
+
 		}
 		fmt.Println(new_pv)
 	}
