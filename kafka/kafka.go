@@ -39,10 +39,10 @@ func (k *KafkaUtil) ListTopics() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var t string
-	for t = range topics {
-		fmt.Println("Current topic:", t)
-	}
+//	var t string
+//	for t = range topics {
+//		fmt.Println("Current topic:", t)
+//	}
 	return topics, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/krallistic/kafka-operator/util"
 	"time"
+	"github.com/krallistic/kafka-operator/kafka"
 )
 
 type Processor struct {
@@ -15,6 +16,7 @@ type Processor struct {
 	kafkaClusters map[string]*spec.KafkaCluster
 	watchEvents chan spec.KafkaClusterWatchEvent
 	clusterEvents chan spec.KafkaClusterEvent
+	kafkaClient kafka.KafkaUtil //TODO we should have different utils for different clusters
 	control chan int
 	errors chan error
 }
@@ -25,8 +27,8 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, control
 		baseBrokerImage:image,
 		util:util,
 		kafkaClusters:make(map[string]*spec.KafkaCluster),
-		watchEvents: make(chan spec.KafkaClusterWatchEvent, 10),
-		clusterEvents: make(chan spec.KafkaClusterEvent, 10),
+		watchEvents: make(chan spec.KafkaClusterWatchEvent, 100),
+		clusterEvents: make(chan spec.KafkaClusterEvent, 100),
 		control: control,
 		errors: make(chan error),
 	}
@@ -89,6 +91,18 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	case spec.NEW_CLUSTER:
 		fmt.Println("ADDED")
 		p.CreateKafkaCluster(currentEvent.Cluster)
+
+		go func() {
+			//THIS is just for testing purpose, we should wait till cluster is ready and then issue kafka event
+			time.Sleep(5 * time.Minute)
+			//TODO dynamic sleep, depending till sts is completely scaled down.
+			clusterEvent := spec.KafkaClusterEvent{
+				Cluster: currentEvent.Cluster,
+				Type: spec.KAKFA_EVENT,
+			}
+			p.clusterEvents <- clusterEvent
+		}()
+
 	case spec.DELTE_CLUSTER:
 		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Cluster, currentEvent.Cluster.Spec)
 		p.util.DeleteKafkaCluster(currentEvent.Cluster.Spec)
@@ -115,6 +129,9 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("Trying to change zookeeper connect, not supported currently")
 	case spec.CLEANUP_EVENT:
 		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
+	case spec.KAKFA_EVENT:
+		fmt.Println("Kafka Event, checking now that topics exist etc..")
+
 	}
 }
 

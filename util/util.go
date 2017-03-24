@@ -300,6 +300,14 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 	replicas := kafkaClusterSpec.BrokerCount
 	image := kafkaClusterSpec.Image
 
+	//TODO error handling, default value?
+	cpus, err := resource.ParseQuantity(kafkaClusterSpec.Resources.CPU)
+	if err != nil {
+		//TODO hack
+		return nil
+	}
+
+
 	statefulSet := &appsv1Beta1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name: name,
@@ -365,7 +373,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 							},
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{
-									v1.ResourceCPU: *resource.NewQuantity(spe, resource.DecimalSI),
+									v1.ResourceCPU: cpus,
 								},
 							},
 

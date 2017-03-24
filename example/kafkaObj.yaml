@@ -19,7 +19,7 @@ spec:
     storageClass: emptyDir
     jmxSidecar: false
     resources:
-      cpu: 1
-      memory: 1Gi
-      diskSpace: 50G
+      cpu: "1"
+      memory: "1Gi"
+      diskSpace: "50G"
 

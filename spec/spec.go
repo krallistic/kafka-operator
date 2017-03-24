@@ -84,6 +84,7 @@ const (
 	//Cleanup event which get emmised after a Cluster Delete.
 	//Its ensure the deletion of the Statefulset after it has been scaled down.
 	CLEANUP_EVENT
+	KAKFA_EVENT
 
 )
 
