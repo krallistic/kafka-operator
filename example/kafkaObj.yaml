@@ -8,8 +8,10 @@ spec:
     topics:
       - name: "test1"
         replicationFactor: 1
+        partitions: 1
       - name: "test2"
         replicationFactor: 2
+        partitions: 2
     kafkaOptions:
        logRetentionHours: 24
     zookeeperConnect: zk-headless.default.svc.cluster.local
