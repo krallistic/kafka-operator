@@ -7,9 +7,9 @@ spec:
     brokerCount: 2
     topics:
       - name: "test1"
-        repication: 1
+        replicationFactor: 1
       - name: "test2"
-        repication: 2
+        replicationFactor: 2
     kafkaOptions:
        logRetentionHours: 24
     zookeeperConnect: zk-headless.default.svc.cluster.local

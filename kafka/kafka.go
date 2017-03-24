@@ -3,6 +3,7 @@ package kafka
 import (
 	"github.com/Shopify/sarama"
 	"fmt"
+	"github.com/krallistic/kafka-operator/spec"
 )
 
 type KafkaUtil struct {
@@ -31,3 +32,5 @@ func  New(brokerList []string, clusterName string) (*KafkaUtil, error){
 	fmt.Println("Initilized Kafka CLient")
 	return k, nil
 }
+
+func (k *KafkaUtil) CreateTopic(topicSpec spec.KafkaTopic)

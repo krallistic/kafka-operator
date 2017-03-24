@@ -22,23 +22,17 @@ type KafkaClusterSpec struct {
 	Resources ResourceSpec `json:"resources"`
 	KafkaOptions KafkaOption `json:"kafkaOptions"`
 	jmxSidecar bool `json:"jmxSidecar"`
-	Topics []KafkaTopic `json:"topics"`
+	Topics []KafkaTopicSpec `json:"topics"`
 	ZookeeperConnect string `json:"zookeeperConnect"`
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	StorageClass string `json:"storageClass"` //TODO use k8s type?
 
-	
-}
-
-type KafkaTopic struct {
-	Name string `json:"name"`
-	Replication int32 `json:"replication"`
 }
 
 //TODO refactor to just use native k8s types
 type ResourceSpec struct {
 	Memory string `json:"memory"`
-	DiskSpace string `json:"diskSpace"` //TODO Option to use GB etc
+	DiskSpace string `json:"diskSpace"`
 	CPU string `json:"cpu"`
 }
 
