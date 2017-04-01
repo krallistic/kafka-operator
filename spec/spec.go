@@ -27,6 +27,13 @@ type KafkaClusterSpec struct {
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	StorageClass string `json:"storageClass"` //TODO use k8s type?
 
+	// Toleration time if node is down/unreachable/not ready before moving to a new net
+	// Set to 0 to disable moving to all together.
+	MinimumGracePeriod int32 `json:"minimumGracePeriod"`
+
+	LeaderImbalanceRatio float32 `json:"leaderImbalanceRatio"`
+	LeaderImbalanceInterval int32 `json:"leaderImbalanceInterval"`
+
 }
 
 //TODO refactor to just use native k8s types
@@ -56,6 +63,8 @@ type KafkaClusterWatchEvent struct {
 
 type KafkaOption struct {
 	LogRetentionHours int `json:"logRetentionHours"`
+	AutoCreateTopics bool `json:"autoCreateTopics"`
+	
 }
 
 

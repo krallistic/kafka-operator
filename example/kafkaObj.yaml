@@ -14,9 +14,16 @@ spec:
         partitions: 2
     kafkaOptions:
        logRetentionHours: 24
+       autoCreateTopics: false
+       CompressionType: 
+
+
     zookeeperConnect: zk-headless.default.svc.cluster.local
     image: confluentinc/cp-kafka:latest
+    leaderImbalanceRatio: 0.1
+    leaderImbalanceInterval: 600
     storageClass: emptyDir
+    minimumGracePeriod: 1200
     jmxSidecar: false
     resources:
       cpu: "1"
