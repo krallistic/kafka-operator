@@ -64,6 +64,7 @@ type KafkaClusterWatchEvent struct {
 type KafkaOption struct {
 	LogRetentionHours int `json:"logRetentionHours"`
 	AutoCreateTopics bool `json:"autoCreateTopics"`
+	CompressionType string `json:compressionType`
 	
 }
 

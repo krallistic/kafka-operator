@@ -15,9 +15,7 @@ spec:
     kafkaOptions:
        logRetentionHours: 24
        autoCreateTopics: false
-       CompressionType: 
-
-
+       compressionType: "gzip"
     zookeeperConnect: zk-headless.default.svc.cluster.local
     image: confluentinc/cp-kafka:latest
     leaderImbalanceRatio: 0.1
