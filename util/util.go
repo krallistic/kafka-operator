@@ -193,6 +193,67 @@ func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
 
 }
 
+func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaClusterSpec) error {
+
+	brokerCount := cluster.BrokerCount
+	fmt.Println("Creating N direkt broker SVCs, ", brokerCount)
+
+	for  i := 0; i < 3 ; i++  {
+		//TODO name dependend on cluster metadata
+		name := "broker-" + string(i)
+		fmt.Println("Creating Direct Broker SVC: ", i, name)
+		svc, err := c.KubernetesClient.Services(namespace).Get(name, c.DefaultOption)
+		if err != nil {
+			return err
+		}
+		if len(svc.Name) == 0 {
+			//Service dosnt exist, creating
+
+			//TODO refactor creation ob object meta out,
+			objectMeta := v1.ObjectMeta{
+				Name: name,
+				Annotations: map[string]string{
+					"component": "kafka",
+					"name":      name,
+					"role": "data",
+					"type": "service",
+				},
+			}
+			service := &v1.Service{
+				ObjectMeta: objectMeta,
+				//TODO label selector
+				Spec: v1.ServiceSpec{
+					Selector: map[string]string{
+						"component": "kafka",
+						"creator": "kafkaOperator",
+						"role":      "data",
+						"name": name,
+					},
+					Ports: []v1.ServicePort{
+						v1.ServicePort{
+							Name:     "broker",
+							Port:     9092,
+						},
+					},
+				},
+			}
+			_, err := c.KubernetesClient.Services(namespace).Create(service)
+			if err != nil {
+				fmt.Println("Error while creating direct service: ", err)
+				return err
+			}
+			fmt.Println(service)
+
+		}
+
+	}
+
+
+
+	return nil
+}
+
+//TODO refactor, into headless svc and direct svc
 func (c *ClientUtil) CreateBrokerService(newSpec spec.KafkaClusterSpec, headless bool) error {
 	//Check if already exists?
 	name := newSpec.Name
