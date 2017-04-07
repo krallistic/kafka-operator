@@ -16,6 +16,8 @@ import (
 	"time"
 	"encoding/json"
 	"k8s.io/client-go/pkg/api/resource"
+//	"k8s.io/client-go/tools/cache"
+//	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
 )
 
 const (
@@ -26,6 +28,10 @@ const (
 	namespace = "default" //TODO flexible NS
 
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
+	defaultCPU = "1"
+	defaultDisk = "100G"
+
+
 )
 
 var (
@@ -40,12 +46,13 @@ type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
 	MasterHost string
 	DefaultOption meta_v1.GetOptions
+
 }
 
 func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
 
 	client, err := newKubeClient(kubeConfigFile)
-
+	//cache.NewIn
 
 	if err != nil {
 		fmt.Println("Error, could not Init Kubernetes Client")
@@ -364,8 +371,11 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 	//TODO error handling, default value?
 	cpus, err := resource.ParseQuantity(kafkaClusterSpec.Resources.CPU)
 	if err != nil {
-		//TODO hack
-		return nil
+		cpus, _ = resource.ParseQuantity(defaultCPU)
+	}
+	diskSpace, err := resource.ParseQuantity(kafkaClusterSpec.Resources.DiskSpace)
+	if err != nil {
+		diskSpace, _ = resource.ParseQuantity(defaultDisk)
 	}
 
 
@@ -438,6 +448,29 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 								},
 							},
 
+						},
+					},
+				},
+
+
+			},
+			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
+				v1.PersistentVolumeClaim{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "es-data",
+						Annotations: map[string]string{
+							//TODO make storageClass Optinal
+							"volume.beta.kubernetes.io/storage-class": "anything",
+						},
+					},
+					Spec: v1.PersistentVolumeClaimSpec{
+						AccessModes: []v1.PersistentVolumeAccessMode{
+							v1.ReadWriteOnce,
+						},
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								v1.ResourceStorage: diskSpace,
+							},
 						},
 					},
 				},
