@@ -92,20 +92,17 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("ADDED")
 		p.CreateKafkaCluster(currentEvent.Cluster)
 
-		go func() {
-			//THIS is just for testing purpose, we should wait till cluster is ready and then issue kafka event
-			time.Sleep(5 * time.Minute)
-			//TODO dynamic sleep, depending till sts is completely scaled down.
-			clusterEvent := spec.KafkaClusterEvent{
-				Cluster: currentEvent.Cluster,
-				Type: spec.KAKFA_EVENT,
-			}
-			p.clusterEvents <- clusterEvent
-		}()
-
 	case spec.DELTE_CLUSTER:
 		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Cluster, currentEvent.Cluster.Spec)
-		p.util.DeleteKafkaCluster(currentEvent.Cluster.Spec)
+		if p.util.DeleteKafkaCluster(currentEvent.Cluster.Spec) != nil {
+			//Error while deleting, just resubmit event after wait time.
+			go func() {
+				time.Sleep(30 * time.Second)
+				p.clusterEvents <- currentEvent
+			}()
+			break
+		}
+
 		go func() {
 			time.Sleep(5 * time.Minute)
 			//TODO dynamic sleep, depending till sts is completely scaled down.
@@ -117,7 +114,14 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		}()
 	case spec.CHANGE_IMAGE:
 		fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
-		p.util.UpdateBrokerImage(currentEvent.Cluster.Spec)
+		if p.util.UpdateBrokerImage(currentEvent.Cluster.Spec) != nil {
+			//Error updating
+			go func() {
+				time.Sleep(30 * time.Second)
+				p.clusterEvents <- currentEvent
+			}()
+			break
+		}
 	case spec.UPSIZE_CLUSTER:
 		fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
 		p.util.UpsizeBrokerStS(currentEvent.Cluster.Spec)

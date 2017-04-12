@@ -144,9 +144,9 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 		fmt.Println("retVal: ", retVal)
 		if err != nil {
 			fmt.Println("Error creating TPR: ", err)
+			return err
 		}
 
-		//TODO Error checking
 
 
 	} else {
@@ -497,10 +497,10 @@ func (c *ClientUtil) UpsizeBrokerStS(newSpec spec.KafkaClusterSpec) error {
 	return err
 }
 
-func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) {
+func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) error {
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
 	if err != nil ||  len(statefulSet.Name) == 0 {
-		return
+		return err
 	}
 	statefulSet.Spec.Template.Spec.Containers[0].Image = newSpec.Image
 
@@ -508,9 +508,10 @@ func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) {
 
 	if err != nil {
 		fmt.Println("Error while updating Broker Count")
+		return err
 	}
 
-	return
+	return nil
 }
 
 func (c *ClientUtil) CreatePersistentVolumes(kafkaClusterSpec spec.KafkaClusterSpec) error{
