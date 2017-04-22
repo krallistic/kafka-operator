@@ -411,7 +411,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 					InitContainers: []v1.Container{
 						v1.Container{
 							Name: "labeler",
-							Image: "devth/k8s-labeler",
+							Image: "devth/k8s-labeler", //TODO fullName, config
 							Env: []v1.EnvVar{
 								v1.EnvVar{
 									Name: "KUBE_NAMESPACE",
@@ -430,6 +430,13 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 									},
 								},
 							},
+						},
+						v1.Container{
+							Name: "zookeeper-ready",
+							Image: "busybox", //TODO full Name, config
+							Command: []string{"sh", "-c", fmt.Sprintf(
+								"until nslookup %s; do echo waiting for myservice; sleep 2; done;",
+								kafkaClusterSpec.ZookeeperConnect)},
 						},
 					},
 
