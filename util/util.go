@@ -408,6 +408,30 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 				},
 
 				Spec:v1.PodSpec{
+					InitContainers: []v1.Container{
+						v1.Container{
+							Name: "labeler",
+							Image: "devth/k8s-labeler",
+							Env: []v1.EnvVar{
+								v1.EnvVar{
+									Name: "KUBE_NAMESPACE",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "metadata.namespace",
+										},
+									},
+								},
+								v1.EnvVar{
+									Name: "KUBE_LABEL_hostname",
+									ValueFrom: &v1.EnvVarSource{
+										FieldRef: &v1.ObjectFieldSelector{
+											FieldPath: "metadata.name",
+										},
+									},
+								},
+							},
+						},
+					},
 
 					Containers: []v1.Container{
 						v1.Container{
