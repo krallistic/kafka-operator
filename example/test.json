@@ -1,0 +1,7 @@
+{
+  "apiVersion": "incubator.test.com/v1",
+  "kind": "KafkaCluster",
+  "metadata": {
+    "name": "testkafkacluster"
+  }
+}
