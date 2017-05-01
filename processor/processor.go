@@ -90,6 +90,8 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	switch currentEvent.Type  {
 	case spec.NEW_CLUSTER:
 		fmt.Println("ADDED")
+		clustersTotal.Inc()
+		clustersCreated.Inc()
 		p.CreateKafkaCluster(currentEvent.Cluster)
 
 	case spec.DELTE_CLUSTER:
@@ -112,6 +114,8 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			}
 			p.clusterEvents <- clusterEvent
 		}()
+		clustersTotal.Dec()
+		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
 		fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
 		if p.util.UpdateBrokerImage(currentEvent.Cluster.Spec) != nil {
@@ -122,17 +126,23 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			}()
 			break
 		}
+		clustersModified.Inc()
 	case spec.UPSIZE_CLUSTER:
 		fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
 		p.util.UpsizeBrokerStS(currentEvent.Cluster.Spec)
+		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
 		fmt.Println("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
+		clustersModified.Inc()
 	case spec.DOWNSIZE_CLUSTER:
 		fmt.Println("Downsize Cluster")
+		clustersModified.Inc()
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
 		fmt.Println("Trying to change zookeeper connect, not supported currently")
+		clustersModified.Inc()
 	case spec.CLEANUP_EVENT:
 		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
+		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		fmt.Println("Kafka Event, checking now that topics exist etc..")
 

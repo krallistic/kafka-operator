@@ -3,6 +3,9 @@
         "github.com/Shopify/sarama": {
             "branch": "master"
         },
+        "github.com/prometheus/client_go": {
+            "branch": "master"
+        },
         "k8s.io/client-go": {
             "branch": "master"
         }

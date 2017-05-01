@@ -10,6 +10,11 @@ import (
 	"os"
 	"syscall"
 	"github.com/krallistic/kafka-operator/processor"
+
+	"net/http"
+	"log"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -18,9 +23,11 @@ var (
 	print bool
 	masterHost string
 	image string
-	zookeerConnect string
+	zookeeperConnect string
 
 
+	metricListenAddress string
+	metricListenPath string
 )
 
 
@@ -31,6 +38,10 @@ func init() {
 	flag.StringVar(&image, "image", "confluentinc/cp-kafka:latest", "Image to use for Brokers")
 	//flag.StringVar(&zookeerConnect, "zookeeperConnect", "zk-0.zk-headless.default.svc.cluster.local:2181", "Connect String to zK, if no string is give a custom zookeeper ist deployed")
 	flag.Parse()
+
+	flag.StringVar(&metricListenAddress, "listen-address", ":9090", "The address to listen on for HTTP requests.")
+	flag.StringVar(&metricListenPath, "metric-path", "/metrics", "Path under which the the prometheus metrics can be found")
+
 }
 
 func Main() int {
@@ -56,6 +67,9 @@ func Main() int {
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)
 
+	http.Handle(metricListenPath, promhttp.Handler())
+	log.Fatal(http.ListenAndServe(metricListenAddress, nil))
+
 	runningLoop: for {
 		select {
 		case sig :=  <- osSignals:
@@ -66,6 +80,8 @@ func Main() int {
 	}
 	fmt.Println("Exiting now")
 	//TODO Eventually cleanup?
+
+
 
 	return 0
 }
