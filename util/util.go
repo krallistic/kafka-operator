@@ -488,10 +488,10 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
 				v1.PersistentVolumeClaim{
 					ObjectMeta: v1.ObjectMeta{
-						Name: "es-data",
+						Name: "kafka-data",
 						Annotations: map[string]string{
 							//TODO make storageClass Optinal
-							"volume.beta.kubernetes.io/storage-class": "anything",
+							//"volume.beta.kubernetes.io/storage-class": "anything",
 						},
 					},
 					Spec: v1.PersistentVolumeClaimSpec{
