@@ -360,8 +360,6 @@ func (c *ClientUtil) BrokerStSDownsize(newSpec spec.KafkaClusterSpec) bool {
 	return *statefulSet.Spec.Replicas > newSpec.BrokerCount
 }
 
-
-
 func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *appsv1Beta1.StatefulSet {
 
 	name := kafkaClusterSpec.Name
@@ -377,7 +375,6 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 	if err != nil {
 		diskSpace, _ = resource.ParseQuantity(defaultDisk)
 	}
-
 
 	statefulSet := &appsv1Beta1.StatefulSet{
 		ObjectMeta: v1.ObjectMeta{
@@ -401,12 +398,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 						"role": "data",
 						"name": name,
 					},
-					Annotations: map[string]string{
-						"pod.beta.kubernetes.io/init-containers": "[ " +
-							"]",
-					},
 				},
-
 				Spec:v1.PodSpec{
 					InitContainers: []v1.Container{
 						v1.Container{

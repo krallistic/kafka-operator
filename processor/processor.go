@@ -93,6 +93,16 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersTotal.Inc()
 		clustersCreated.Inc()
 		p.CreateKafkaCluster(currentEvent.Cluster)
+		go func() {
+			fmt.Println("Init heartbeat type checking...")
+			time.Sleep(30 * time.Second)
+			clusterEvent := spec.KafkaClusterEvent{
+				Cluster: currentEvent.Cluster,
+				Type: spec.KAKFA_EVENT,
+			}
+			p.clusterEvents <- clusterEvent
+		}()
+		break
 
 	case spec.DELTE_CLUSTER:
 		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Cluster, currentEvent.Cluster.Spec)
@@ -145,12 +155,17 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		fmt.Println("Kafka Event, checking now that topics exist etc..")
+		go func() {
+			time.Sleep(30 * time.Second)
+			p.clusterEvents <- currentEvent
+		}()
+		p.kafkaClient.ListTopics()
 
 	}
 }
 
 
-//Creates inside a goroutine a watch channel on the KakkaCLuster Endpoint and distibutes the events.
+//Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside
 func ( p *Processor) WatchKafkaEvents() {
 	p.util.MonitorKafkaEvents(p.watchEvents, p.errors)
