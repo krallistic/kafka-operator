@@ -16,6 +16,7 @@ import (
 	"time"
 	"encoding/json"
 	"k8s.io/client-go/pkg/api/resource"
+	log "github.com/Sirupsen/logrus"
 //	"k8s.io/client-go/tools/cache"
 //	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
 )
@@ -38,6 +39,9 @@ var (
 	//TODO make kafkaclusters var
 	getEndpoint = fmt.Sprintf("/apis/%s/v1/namespaces/%s/kafkaclusters", tprSuffix,  namespace)
 	watchEndpoint = fmt.Sprintf("/apis/%s/v1/watch/namespaces/%s/kafkaclusters", tprSuffix, namespace)
+	logger = log.WithFields(log.Fields{
+		"package": "util",
+	})
 )
 
 
@@ -47,6 +51,10 @@ type ClientUtil struct {
 	MasterHost string
 	DefaultOption meta_v1.GetOptions
 
+}
+
+func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaClusterSpec) *log.Entry {
+	return logger.WithFields(log.Fields{"clusterName" : cluster.Name, "namespace": "TODO"})
 }
 
 func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
@@ -108,6 +116,7 @@ func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 }
 
 func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
+	methodLogger := logger.WithFields(log.Fields{"method": "GetKafkaClusters", })
 	//var resp *http.Response
 	var err error
 
@@ -118,17 +127,25 @@ func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
 	response, err := httpClient.Get(c.MasterHost + getEndpoint)
 	if err != nil {
 		fmt.Println("Error while getting resonse from API: ", err)
+		methodLogger.WithFields(log.Fields{
+			"response":response,
+			"error": err,
+
+		}).Error("Error response from API")
 		return nil, err
 	}
-	fmt.Println("GetKafaCluster API Response: ", response)
+	methodLogger.WithFields(log.Fields{
+		"response": response,
+	}).Info("KafkaCluster received")
 
 	return nil, nil
 }
 /// Create a the thirdparty ressource inside the Kubernetws Cluster
 func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
+	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource",})
 	tprResult, _ := c.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", c.DefaultOption)
 	if len(tprResult.Name) == 0 {
-		fmt.Println("No KafkaCluster TPR found, creating...")
+		methodLogger.WithFields(log.Fields{}).Info("No existing KafkaCluster TPR found, creating")
 
 		tpr := &v1beta1.ThirdPartyResource{
 			ObjectMeta: v1.ObjectMeta{
@@ -139,55 +156,59 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 			},
 			Description: "Managed apache kafke clusters",
 		}
-		fmt.Println("Creating TPR: ", tpr)
 		retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
 		fmt.Println("retVal: ", retVal)
 		if err != nil {
-			fmt.Println("Error creating TPR: ", err)
+			methodLogger.WithFields(log.Fields{"response": err,}).Error("Error creating ThirdPartyRessources")
 			return err
 		}
+		methodLogger.WithFields(log.Fields{"response": retVal,}).Debug("Created KafkaCluster TPR")
 
 
 
 	} else {
-		fmt.Println("TPR already exist")
+		methodLogger.Info("KafkaCluster TPR already exist")
 		//TODO check for correctnes/verison?
 	}
 	return nil
 }
 
-
-//
 func (c *ClientUtil)MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, errorChannel chan error)  {
+	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents",})
 	go func() {
 		for {
 			tr := &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
 			client := &http.Client{Transport: tr}
+
 			fmt.Println("Trying API: ", c.MasterHost + watchEndpoint)
 			response, err := client.Get(c.MasterHost + watchEndpoint)
 			if err != nil {
-				fmt.Println("Error reading API:" , err , response)
+				methodLogger.WithFields(log.Fields{
+					"error":err,
+					"response": response,
+				}).Error("Error reading API, sleeping 2 seconds")
 				errorChannel <- err
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			fmt.Println("Got Response from WatchEndpoint, parsing now", response)
-			fmt.Println("Response Body: ", response.Body)
+			methodLogger.WithFields(log.Fields{"response": response,}).Info("Response from API, parsing ...")
 			decoder := json.NewDecoder(response.Body)
 			for {
 				var event spec.KafkaClusterWatchEvent
 				err = decoder.Decode(&event)
 				if err != nil {
-					fmt.Println("Error decoding response ", err)
+					methodLogger.WithFields(log.Fields{
+						"error":err,
+						"response.body": response.Body,
+					}).Error("Error decoding TPR response")
 					errorChannel <- err
 					break
 				}
-				fmt.Println("Parsed KafkaWatch Event ", event)
+				methodLogger.WithFields(log.Fields{"event":event,}).Debug("Parsed KafkaWatchEvent")
 				eventsChannel <- event
 			}
-
 			time.Sleep(2 * time.Second)
 		}
 	}()
@@ -361,6 +382,8 @@ func (c *ClientUtil) BrokerStSDownsize(newSpec spec.KafkaClusterSpec) bool {
 }
 
 func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *appsv1Beta1.StatefulSet {
+	methodLogger := logger.WithFields(log.Fields{"method": "createStsFromSpec",})
+	methodLogger = EnrichSpecWithLogger(methodLogger, kafkaClusterSpec)
 
 	name := kafkaClusterSpec.Name
 	replicas := kafkaClusterSpec.BrokerCount
