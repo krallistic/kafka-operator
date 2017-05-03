@@ -6,13 +6,12 @@ import (
 	"flag"
 	"github.com/krallistic/kafka-operator/util"
 
-
 	"os"
 	"syscall"
 	"github.com/krallistic/kafka-operator/processor"
 
 	"net/http"
-	"log"
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -28,6 +27,9 @@ var (
 
 	metricListenAddress string
 	metricListenPath string
+	logger = log.WithFields(log.Fields{
+		"package": "main",
+	})
 )
 
 
@@ -45,17 +47,28 @@ func init() {
 }
 
 func Main() int {
-	fmt.Println("Started kafka-operator ")
+	logger.WithFields(log.Fields{
+		"version": version,
+		"masterHost": masterHost,
+		"kubeconfig": kubeConfigFile,
+		"image": image,
+		"metric-listen-address": metricListenAddress,
+		"metric-listen-path": metricListenPath,
+	}).Info("Started kafka-operator with args")
 	if print {
-		fmt.Println("Operator Version: ", version)
+		logger.WithFields(log.Fields{"version": version,}).Print("Operator Version")
 		return 0
 	}
-	fmt.Println("masterHost: ", masterHost)
-	fmt.Println("kubeConfigFile Location: ", kubeConfigFile)
 	k8sclient, err := util.New(kubeConfigFile, masterHost)
 	if err != nil {
-		fmt.Println("Error initilizing kubernetes client: ", err)
+		logger.WithFields(log.Fields{
+			"error": err,
+			"configFile": kubeConfigFile,
+			"masterHost": masterHost,
+		}).Fatal("Error initilizing kubernetes client ")
+		return 1
 	}
+
 	fmt.Println(k8sclient)
 
 	k8sclient.CreateKubernetesThirdPartyResource()
@@ -68,20 +81,18 @@ func Main() int {
 	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)
 
 	http.Handle(metricListenPath, promhttp.Handler())
-	log.Fatal(http.ListenAndServe(metricListenAddress, nil))
+	logger.Fatal(http.ListenAndServe(metricListenAddress, nil))
 
 	runningLoop: for {
 		select {
 		case sig :=  <- osSignals:
-			fmt.Println("Got Signal from OS shutting Down: ", sig)
+			logger.WithFields(log.Fields{"signal": sig}).Info("Got Signal from OS shutting Down: ")
 			break runningLoop
-
 		}
 	}
-	fmt.Println("Exiting now")
+
+	logger.Info("Exiting now")
 	//TODO Eventually cleanup?
-
-
 
 	return 0
 }
