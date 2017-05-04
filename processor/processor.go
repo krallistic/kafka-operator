@@ -61,16 +61,16 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 		clusterEvent.Type = spec.DELTE_CLUSTER
 		return clusterEvent
 	//EVENT type must be modfied now
-	} else if p.util.BrokerStatefulSetExist(event.Object.Spec){
+	} else if p.util.BrokerStatefulSetExist(event.Object){
 		clusterEvent.Type = spec.NEW_CLUSTER
 		return clusterEvent
-	} else if p.util.BrokerStSImageUpdate(event.Object.Spec) {
+	} else if p.util.BrokerStSImageUpdate(event.Object) {
 		clusterEvent.Type = spec.CHANGE_IMAGE
 		return clusterEvent
-	} else if p.util.BrokerStSUpsize(event.Object.Spec) {
+	} else if p.util.BrokerStSUpsize(event.Object) {
 		clusterEvent.Type = spec.UPSIZE_CLUSTER
 		return clusterEvent
-	} else if p.util.BrokerStSDownsize(event.Object.Spec) {
+	} else if p.util.BrokerStSDownsize(event.Object) {
 		fmt.Println("No Downsizing currently supported, TODO without dataloss?")
 		clusterEvent.Type = spec.DOWNSIZE_CLUSTER
 		return clusterEvent
@@ -106,7 +106,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 
 	case spec.DELTE_CLUSTER:
 		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Cluster, currentEvent.Cluster.Spec)
-		if p.util.DeleteKafkaCluster(currentEvent.Cluster.Spec) != nil {
+		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
 			//Error while deleting, just resubmit event after wait time.
 			go func() {
 				time.Sleep(30 * time.Second)
@@ -128,7 +128,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
 		fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
-		if p.util.UpdateBrokerImage(currentEvent.Cluster.Spec) != nil {
+		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
 			//Error updating
 			go func() {
 				time.Sleep(30 * time.Second)
@@ -139,7 +139,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersModified.Inc()
 	case spec.UPSIZE_CLUSTER:
 		fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
-		p.util.UpsizeBrokerStS(currentEvent.Cluster.Spec)
+		p.util.UpsizeBrokerStS(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
 		fmt.Println("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
@@ -210,12 +210,12 @@ func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 
 	//Create Headless Brokersvc
 	//TODO better naming
-	p.util.CreateBrokerService(clusterSpec.Spec, true)
+	p.util.CreateBrokerService(clusterSpec, true)
 
 	//TODO createVolumes
 
 	//CREATE Broker sts
 	//Currently we extract name out of spec, maybe move to metadata to be more inline with other k8s komponents.
-	p.util.CreateBrokerStatefulSet(clusterSpec.Spec)
+	p.util.CreateBrokerStatefulSet(clusterSpec)
 
 }
