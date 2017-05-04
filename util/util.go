@@ -282,8 +282,9 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaClusterSpec) er
 }
 
 //TODO refactor, into headless svc and direct svc
-func (c *ClientUtil) CreateBrokerService(newSpec spec.KafkaClusterSpec, headless bool) error {
+func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless bool) error {
 	//Check if already exists?
+	newSpec := cluster.Spec
 	name := newSpec.Name
 	svc, err := c.KubernetesClient.Services(namespace).Get(name, c.DefaultOption)
 	if err != nil {
@@ -350,7 +351,9 @@ func (c *ClientUtil) CreateBrokerService(newSpec spec.KafkaClusterSpec, headless
 
 
 //TODO caching of the STS
-func (c *ClientUtil) BrokerStatefulSetExist(kafkaClusterSpec spec.KafkaClusterSpec) bool {
+func (c *ClientUtil) BrokerStatefulSetExist(cluster spec.KafkaCluster) bool {
+	kafkaClusterSpec := cluster.Spec
+
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(kafkaClusterSpec.Name, c.DefaultOption)
 	if err != nil ||  len(statefulSet.Name) == 0 {
 		return false
@@ -358,7 +361,9 @@ func (c *ClientUtil) BrokerStatefulSetExist(kafkaClusterSpec spec.KafkaClusterSp
 	return true
 }
 
-func (c *ClientUtil) BrokerStSImageUpdate(kafkaClusterSpec spec.KafkaClusterSpec) bool {
+func (c *ClientUtil) BrokerStSImageUpdate(cluster spec.KafkaCluster) bool {
+	kafkaClusterSpec := cluster.Spec
+
 	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(kafkaClusterSpec.Name, c.DefaultOption)
 	if err != nil {
 		fmt.Println("TODO error?")
@@ -371,30 +376,30 @@ func (c *ClientUtil) BrokerStSImageUpdate(kafkaClusterSpec spec.KafkaClusterSpec
 	return false
 }
 
-func (c *ClientUtil) BrokerStSUpsize(newSpec spec.KafkaClusterSpec) bool {
-	statefulSet, _ := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
-	return *statefulSet.Spec.Replicas < newSpec.BrokerCount
+func (c *ClientUtil) BrokerStSUpsize(cluster spec.KafkaCluster) bool {
+	statefulSet, _ := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)
+	return *statefulSet.Spec.Replicas < cluster.Spec.BrokerCount
 }
 
-func (c *ClientUtil) BrokerStSDownsize(newSpec spec.KafkaClusterSpec) bool {
-	statefulSet, _ := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
-	return *statefulSet.Spec.Replicas > newSpec.BrokerCount
+func (c *ClientUtil) BrokerStSDownsize(cluster spec.KafkaCluster) bool {
+	statefulSet, _ := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)
+	return *statefulSet.Spec.Replicas > cluster.Spec.BrokerCount
 }
 
-func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *appsv1Beta1.StatefulSet {
+func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.StatefulSet {
 	methodLogger := logger.WithFields(log.Fields{"method": "createStsFromSpec",})
-	methodLogger = EnrichSpecWithLogger(methodLogger, kafkaClusterSpec)
+	methodLogger = EnrichSpecWithLogger(methodLogger, cluster.Spec)
 
-	name := kafkaClusterSpec.Name
-	replicas := kafkaClusterSpec.BrokerCount
-	image := kafkaClusterSpec.Image
+	name := cluster.Spec.Name
+	replicas := cluster.Spec.BrokerCount
+	image := cluster.Spec.Image
 
 	//TODO error handling, default value?
-	cpus, err := resource.ParseQuantity(kafkaClusterSpec.Resources.CPU)
+	cpus, err := resource.ParseQuantity(cluster.Spec.Resources.CPU)
 	if err != nil {
 		cpus, _ = resource.ParseQuantity(defaultCPU)
 	}
-	diskSpace, err := resource.ParseQuantity(kafkaClusterSpec.Resources.DiskSpace)
+	diskSpace, err := resource.ParseQuantity(cluster.Spec.Resources.DiskSpace)
 	if err != nil {
 		diskSpace, _ = resource.ParseQuantity(defaultDisk)
 	}
@@ -412,7 +417,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 		Spec: appsv1Beta1.StatefulSetSpec{
 			Replicas: &replicas,
 
-			ServiceName: kafkaClusterSpec.Name,
+			ServiceName: cluster.Spec.Name,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: map[string]string{
@@ -451,7 +456,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 							Image: "busybox", //TODO full Name, config
 							Command: []string{"sh", "-c", fmt.Sprintf(
 								"until nslookup %s; do echo waiting for myservice; sleep 2; done;",
-								kafkaClusterSpec.ZookeeperConnect)},
+								cluster.Spec.ZookeeperConnect)},
 						},
 					},
 
@@ -479,7 +484,7 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 								},
 								v1.EnvVar{
 									Name:  "KAFKA_ZOOKEEPER_CONNECT",
-									Value: kafkaClusterSpec.ZookeeperConnect,
+									Value: cluster.Spec.ZookeeperConnect,
 								},
 							},
 							Ports: []v1.ContainerPort{
@@ -527,13 +532,13 @@ func (c *ClientUtil) createStsFromSpec(kafkaClusterSpec spec.KafkaClusterSpec) *
 }
 
 
-func (c *ClientUtil) UpsizeBrokerStS(newSpec spec.KafkaClusterSpec) error {
+func (c *ClientUtil) UpsizeBrokerStS(cluster spec.KafkaCluster) error {
 
-	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)
 	if err != nil ||  len(statefulSet.Name) == 0 {
 		return err
 	}
-	statefulSet.Spec.Replicas = &newSpec.BrokerCount
+	statefulSet.Spec.Replicas = &cluster.Spec.BrokerCount
 	_ ,err = c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
 
 	if err != nil {
@@ -543,12 +548,12 @@ func (c *ClientUtil) UpsizeBrokerStS(newSpec spec.KafkaClusterSpec) error {
 	return err
 }
 
-func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) error {
-	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(newSpec.Name, c.DefaultOption)
+func (c *ClientUtil) UpdateBrokerImage(cluster spec.KafkaCluster) error {
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)
 	if err != nil ||  len(statefulSet.Name) == 0 {
 		return err
 	}
-	statefulSet.Spec.Template.Spec.Containers[0].Image = newSpec.Image
+	statefulSet.Spec.Template.Spec.Containers[0].Image = cluster.Spec.Image
 
 	_ ,err = c.KubernetesClient.StatefulSets(namespace).Update(statefulSet)
 
@@ -560,7 +565,7 @@ func (c *ClientUtil) UpdateBrokerImage(newSpec spec.KafkaClusterSpec) error {
 	return nil
 }
 
-func (c *ClientUtil) CreatePersistentVolumes(kafkaClusterSpec spec.KafkaClusterSpec) error{
+func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error{
 	fmt.Println("Creating Persistent Volumes for KafkaCluster")
 
 	pv, err := c.KubernetesClient.PersistentVolumes().Get("testpv-1", c.DefaultOption)
@@ -590,7 +595,7 @@ func (c *ClientUtil) CreatePersistentVolumes(kafkaClusterSpec spec.KafkaClusterS
 
 }
 
-func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
+func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 
 	var gracePeriod int64
 	gracePeriod = 10
@@ -601,12 +606,12 @@ func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
 	}
 
 	//Delete Services
-	err := c.KubernetesClient.Services(namespace).Delete(oldSpec.Name, &deleteOption)
+	err := c.KubernetesClient.Services(namespace).Delete(cluster.Spec.Name, &deleteOption)
 	if err != nil {
 		fmt.Println("Error while deleting Broker Service: ", err)
 	}
 
-	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(oldSpec.Name, c.DefaultOption)//Scaling Replicas down to Zero
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)//Scaling Replicas down to Zero
 	if (len(statefulSet.Name) == 0 ) && ( err != nil) {
 		fmt.Println("Error while getting StS from k8s: ", err)
 	}
@@ -633,10 +638,10 @@ func (c *ClientUtil) DeleteKafkaCluster(oldSpec spec.KafkaClusterSpec) error {
 }
 
 
-func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterSpec) error {
+func (c *ClientUtil) CreateBrokerStatefulSet(cluster spec.KafkaCluster) error {
 
 	//Check if sts with Name already exists
-	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(kafkaClusterSpec.Name, c.DefaultOption)
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)
 
 
 	//TODO dont use really a sts set, instead use just PODs? More control over livetime (aka downscaling which) upscaling etc..but more effort?
@@ -646,7 +651,7 @@ func (c *ClientUtil) CreateBrokerStatefulSet(kafkaClusterSpec spec.KafkaClusterS
 	if len(statefulSet.Name) == 0 {
 		fmt.Println("STS dosnt exist, creating")
 
-		statefulSet := c.createStsFromSpec(kafkaClusterSpec)
+		statefulSet := c.createStsFromSpec(cluster)
 
 		fmt.Println(statefulSet)
 		_, err := c.KubernetesClient.StatefulSets(namespace).Create(statefulSet)
