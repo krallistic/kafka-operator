@@ -547,7 +547,7 @@ func (c *ClientUtil) UpsizeBrokerStS(cluster spec.KafkaCluster) error {
 }
 
 func (c *ClientUtil) UpdateBrokerImage(cluster spec.KafkaCluster) error {
-	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Spec.Name, c.DefaultOption)
+	statefulSet, err := c.KubernetesClient.StatefulSets(namespace).Get(cluster.Metadata.Name, c.DefaultOption)
 	if err != nil ||  len(statefulSet.Name) == 0 {
 		return err
 	}

@@ -198,7 +198,7 @@ func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	suffix := ".cluster.local:9092"
 	brokerNames := make([]string, clusterSpec.Spec.BrokerCount)
 
-	headless_SVC_Name := clusterSpec.Spec.Name
+	headless_SVC_Name := clusterSpec.Metadata.Name
 	round_robing_dns := headless_SVC_Name + suffix
 	fmt.Println("Headless Service Name: ", headless_SVC_Name, " Should be accessable through LB: ", round_robing_dns )
 

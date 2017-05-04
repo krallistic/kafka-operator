@@ -3,11 +3,14 @@
         "github.com/Shopify/sarama": {
             "branch": "master"
         },
+        "github.com/pkg/errors": {
+            "version": ">=0.8.0, <1.0.0"
+        },
         "github.com/prometheus/client_go": {
             "branch": "master"
         },
         "github.com/sirupsen/logrus": {
-            "branch": "master"
+            "version": "==v0.11.5"
         },
         "k8s.io/client-go": {
             "branch": "master"
