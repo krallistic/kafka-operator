@@ -1,21 +1,37 @@
 package util
 
 import (
-	k8sclient "k8s.io/client-go/kubernetes"
 
 	"fmt"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/rest"
-	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/pkg/api/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
+
+	//TODO cleanup dependencies
 	"crypto/tls"
 	"github.com/krallistic/kafka-operator/spec"
 	"net/http"
 	"time"
 	"encoding/json"
-	"k8s.io/client-go/pkg/api/resource"
+
+
+	"k8s.io/client-go/kubernetes/scheme"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	//"k8s.io/client-go/kubernetes"
+	//"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
+	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api/v1"
+	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+
+
 	log "github.com/Sirupsen/logrus"
 //	"k8s.io/client-go/tools/cache"
 //	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
@@ -27,6 +43,7 @@ const (
 	tprFullName = tprShortName + "." + tprSuffix
 	//API Name is used in the watch of the API, it defined as tprShorName, removal of -, and suffix s
 	tprApiName = "kafkaclusters"
+	tprVersion = "v1"
 
 	tprName = "kafka.operator.com"
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
@@ -37,8 +54,8 @@ const (
 )
 
 var (
-	getEndpoint = fmt.Sprintf("/apis/%s/v1/%s", tprSuffix, tprApiName)
-	watchEndpoint = fmt.Sprintf("/apis/%s/v1/watch/%s", tprSuffix, tprApiName)
+	getEndpoint = fmt.Sprintf("/apis/%s/%s/%s", tprSuffix, tprVersion, tprApiName)
+	watchEndpoint = fmt.Sprintf("/apis/%s/%s/watch/%s", tprSuffix, tprVersion, tprApiName)
 	logger = log.WithFields(log.Fields{
 		"package": "util",
 	})
@@ -49,7 +66,8 @@ var (
 type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
 	MasterHost string
-	DefaultOption meta_v1.GetOptions
+	DefaultOption metav1.GetOptions
+
 
 }
 
@@ -72,9 +90,68 @@ func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
 		MasterHost: masterHost,
 	}
 	fmt.Println("Initilized k8s CLient")
+
+	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
+	config, err := buildConfig(kubeConfigFile)
+	if err != nil {
+		panic(err)
+	}
+
+
+	var tprconfig *rest.Config
+	tprconfig = config
+	configureClient(tprconfig)
+
+
+	tprclient, err := rest.RESTClientFor(tprconfig)
+	if err != nil {
+		panic(err)
+	}
+
+
+	// Fetch a list of our TPRs
+	exampleList := spec.KafkaClusterList{}
+	err = tprclient.Get().Resource("examples").Do().Into(&exampleList)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("LIST: %#v\n", exampleList)
+
 	return k, nil
 
 }
+
+func buildConfig(kubeconfig string) (*rest.Config, error) {
+	if kubeconfig != "" {
+		return clientcmd.BuildConfigFromFlags("", kubeconfig)
+	}
+	return rest.InClusterConfig()
+}
+
+func configureClient(config *rest.Config) {
+	groupversion := schema.GroupVersion{
+		Group:   "k8s.io",
+		Version: "v1",
+	}
+
+	config.GroupVersion = &groupversion
+	config.APIPath = "/apis"
+	config.ContentType = runtime.ContentTypeJSON
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+
+	schemeBuilder := runtime.NewSchemeBuilder(
+		func(scheme *runtime.Scheme) error {
+			scheme.AddKnownTypes(
+				groupversion,
+				&spec.KafkaCluster{},
+				&spec.KafkaClusterList{},
+			)
+			return nil
+		})
+	metav1.AddToGroupVersion(scheme.Scheme, groupversion)
+	schemeBuilder.AddToScheme(scheme.Scheme)
+}
+
 
 
 func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
@@ -143,32 +220,29 @@ func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
 /// Create a the thirdparty ressource inside the Kubernetws Cluster
 func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource",})
-	tprResult, _ := c.KubernetesClient.ThirdPartyResources().Get("kafkaCluster", c.DefaultOption)
-	if len(tprResult.Name) == 0 {
-		methodLogger.WithFields(log.Fields{}).Info("No existing KafkaCluster TPR found, creating")
+	tpr, err := c.KubernetesClient.ExtensionsV1beta1Client.ThirdPartyResources().Get(tprFullName, c.DefaultOption)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			methodLogger.WithFields(log.Fields{}).Info("No existing KafkaCluster TPR found, creating")
 
-		tpr := &v1beta1.ThirdPartyResource{
-			ObjectMeta: v1.ObjectMeta{
-				Name: tprFullName,
-			},
-			Versions: []v1beta1.APIVersion{
-				{Name: "v1"},
-			},
-			Description: "Managed apache kafke clusters",
+			tpr := &v1beta1.ThirdPartyResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: tprFullName,
+				},
+				Versions: []v1beta1.APIVersion{
+					{Name: tprVersion},
+				},
+				Description: "Managed Apache Kafka clusters",
+			}
+			retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
+			if err != nil {
+				methodLogger.WithFields(log.Fields{"response": err, }).Error("Error creating ThirdPartyRessources")
+				panic(err)
+			}
+			methodLogger.WithFields(log.Fields{"response": retVal, }).Debug("Created KafkaCluster TPR")
 		}
-		retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
-		fmt.Println("retVal: ", retVal)
-		if err != nil {
-			methodLogger.WithFields(log.Fields{"response": err,}).Error("Error creating ThirdPartyRessources")
-			return err
-		}
-		methodLogger.WithFields(log.Fields{"response": retVal,}).Debug("Created KafkaCluster TPR")
-
-
-
 	} else {
-		methodLogger.Info("KafkaCluster TPR already exist")
-		//TODO check for correctnes/verison?
+		methodLogger.Info("KafkaCluster TPR already exist", tpr)
 	}
 	return nil
 }
@@ -238,7 +312,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 			//Service dosnt exist, creating
 
 			//TODO refactor creation ob object meta out,
-			objectMeta := v1.ObjectMeta{
+			objectMeta := metav1.ObjectMeta{
 				Name: name,
 				Annotations: map[string]string{
 					"component": "kafka",
@@ -297,7 +371,7 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 
 
 
-		objectMeta := v1.ObjectMeta{
+		objectMeta := metav1.ObjectMeta{
 			Name: name,
 			Annotations: map[string]string{
 				"component": "kafka",
@@ -403,7 +477,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 	}
 
 	statefulSet := &appsv1Beta1.StatefulSet{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
 				"component": "kafka",
@@ -417,7 +491,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 
 			ServiceName: cluster.Metadata.Name,
 			Template: v1.PodTemplateSpec{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"component": "kafka",
 						"creator": "kafkaOperator",
@@ -505,7 +579,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 			},
 			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
 				v1.PersistentVolumeClaim{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name: "kafka-data",
 						Annotations: map[string]string{
 							//TODO make storageClass Optinal
@@ -573,7 +647,7 @@ func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error{
 	if len(pv.Name) == 0 {
 		fmt.Println("PersistentVolume dosnt exist, creating")
 		new_pv := v1.PersistentVolume{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:"test-1",
 			},
 			Spec: v1.PersistentVolumeSpec{
@@ -599,7 +673,7 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 	gracePeriod = 10
 	//var orphan bool
 	//orphan = true
-	deleteOption := v1.DeleteOptions{
+	deleteOption := metav1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 	}
 
@@ -622,11 +696,6 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 	if err != nil {
 		fmt.Println("Error while scaling down Broker Sts: ", err)
 	}
-	//TODO maybe sleep, yes we need a sleep
-	//err =  c.KubernetesClient.StatefulSets(namespace).Delete(oldSpec.Name, &deleteOption)
-	//if err != nil {
-	//	fmt.Println("Error while deleting sts")
-	//}
 	//Delete Volumes
 	//TODO when volumes are implemented
 
@@ -641,8 +710,6 @@ func (c *ClientUtil) CreateBrokerStatefulSet(cluster spec.KafkaCluster) error {
 	//Check if sts with Name already exists
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
 
-
-	//TODO dont use really a sts set, instead use just PODs? More control over livetime (aka downscaling which) upscaling etc..but more effort?
 	if err != nil {
 		fmt.Println("Error get sts")
 	}
@@ -654,10 +721,11 @@ func (c *ClientUtil) CreateBrokerStatefulSet(cluster spec.KafkaCluster) error {
 		fmt.Println(statefulSet)
 		_, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Create(statefulSet)
 		if err != nil {
-			fmt.Println("Error while creating StatefulSet: ", err) //TODO what to do with error? If we track State Internally we can do a reconcilidation which would force a recreate
+			fmt.Println("Error while creating StatefulSet: ", err)
+			return err
 		}
 	} else {
-		fmt.Println("STS already exist. TODO what to do now?", statefulSet)
+		fmt.Println("STS already exist.", statefulSet)
 	}
 	return nil
 }

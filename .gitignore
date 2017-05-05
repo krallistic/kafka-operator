@@ -24,3 +24,6 @@ _testmain.go
 *.prof
 
 .idea/*
+
+#Do we need to push vendor? manifest.json should be determinist enough.
+vendor/

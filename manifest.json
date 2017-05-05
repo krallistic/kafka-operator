@@ -12,8 +12,11 @@
         "github.com/sirupsen/logrus": {
             "version": "==v0.11.5"
         },
+        "k8s.io/apimachinery": {
+            "branch": "release-1.6"
+        },
         "k8s.io/client-go": {
-            "branch": "master"
+            "version": "^3.0.0-beta.0"
         }
     }
 }

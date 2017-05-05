@@ -1,15 +1,26 @@
 package spec
 
 import (
-	"k8s.io/client-go/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"encoding/json"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 )
 
 
 type KafkaCluster struct {
+	metav1.TypeMeta `json:",inline"`
+	Metadata        metav1.ObjectMeta `json:"metadata"`
 	APIVersion string `json:"apiVersion"`
 	Kind string `json:"kind"`
-	Metadata v1.ObjectMeta `json:"metadata"`
 	Spec KafkaClusterSpec `json:"spec"`
+}
+
+type KafkaClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	Metadata  metav1.ListMeta `json:"metadata"`
+
+	Items []KafkaCluster `json:"items"`
 }
 
 
@@ -97,3 +108,53 @@ const (
 
 )
 
+
+// Required to satisfy Object interface
+func (e *KafkaCluster) GetObjectKind() schema.ObjectKind {
+	return &e.TypeMeta
+}
+
+// Required to satisfy ObjectMetaAccessor interface
+func (e *KafkaCluster) GetObjectMeta() metav1.Object {
+	return &e.Metadata
+}
+
+// Required to satisfy Object interface
+func (el *KafkaClusterList) GetObjectKind() schema.ObjectKind {
+	return &el.TypeMeta
+}
+
+// Required to satisfy ListMetaAccessor interface
+func (el *KafkaClusterList) GetListMeta() metav1.List {
+	return &el.Metadata
+}
+
+//Shamefull copied over from: https://github.com/kubernetes/client-go/blob/master/examples/third-party-resources/types.go
+// The code below is used only to work around a known problem with third-party
+// resources and ugorji. If/when these issues are resolved, the code below
+// should no longer be required.
+
+type KafkaClusterListCopy KafkaClusterList
+type KafkaClusterCopy KafkaCluster
+
+func (e *KafkaCluster) UnmarshalJSON(data []byte) error {
+	tmp := KafkaClusterCopy{}
+	err := json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	}
+	tmp2 := KafkaCluster(tmp)
+	*e = tmp2
+	return nil
+}
+
+func (el *KafkaClusterList) UnmarshalJSON(data []byte) error {
+	tmp := KafkaClusterListCopy{}
+	err := json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	}
+	tmp2 := KafkaClusterList(tmp)
+	*el = tmp2
+	return nil
+}
