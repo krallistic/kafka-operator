@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"fmt"
 )
 
 
 type KafkaCluster struct {
 	metav1.TypeMeta `json:",inline"`
-	Metadata        metav1.ObjectMeta `json:"metadata"`
+	Metadata metav1.ObjectMeta `json:"metadata"`
 	APIVersion string `json:"apiVersion"`
 	Kind string `json:"kind"`
 	Spec KafkaClusterSpec `json:"spec"`
@@ -108,6 +109,11 @@ const (
 
 )
 
+
+// convenience functions
+func PrintCluster(cluster *KafkaCluster) string {
+	return fmt.Sprintf("%s/%s, APIVersion: %s, Kind: %s, Value: %#v", cluster.Metadata.Namespace, cluster.Metadata.Name, cluster.APIVersion, cluster.Kind, cluster)
+}
 
 // Required to satisfy Object interface
 func (e *KafkaCluster) GetObjectKind() schema.ObjectKind {

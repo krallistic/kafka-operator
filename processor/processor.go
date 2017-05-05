@@ -168,7 +168,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 //Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside
 func ( p *Processor) WatchKafkaEvents() {
-	p.util.MonitorKafkaEvents(p.watchEvents, p.errors)
+	p.util.MonitorKafkaEvents(p.watchEvents, p.control)
 	fmt.Println("Watching Kafka Events")
 	go func() {
 		for {

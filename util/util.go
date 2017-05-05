@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	//TODO cleanup dependencies
-	"crypto/tls"
+	//"crypto/tls"
 	"github.com/krallistic/kafka-operator/spec"
-	"net/http"
+	//"net/http"
 	"time"
-	"encoding/json"
+	//"encoding/json"
 
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -30,11 +30,13 @@ import (
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/tools/cache"
 
 	log "github.com/Sirupsen/logrus"
 //	"k8s.io/client-go/tools/cache"
 //	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
+
 )
 
 const (
@@ -67,8 +69,7 @@ type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
 	MasterHost string
 	DefaultOption metav1.GetOptions
-
-
+	tprClient *rest.RESTClient
 }
 
 func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaCluster) *log.Entry {
@@ -77,45 +78,26 @@ func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaCluster) *log.Ent
 
 func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
 
-	client, err := newKubeClient(kubeConfigFile)
-	//cache.NewIn
+	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
+	config, err := buildConfig(kubeConfigFile)
 
+	client, err := newKubeClient(kubeConfigFile)
 	if err != nil {
 		fmt.Println("Error, could not Init Kubernetes Client")
+		return nil, err
+	}
+	tprClient, err := newTPRClient(config)
+	if err != nil {
+		fmt.Println("Error, could not Init KafkaCluster TPR Client")
 		return nil, err
 	}
 
 	k := &ClientUtil{
 		KubernetesClient: client,
 		MasterHost: masterHost,
+		tprClient:tprClient,
 	}
 	fmt.Println("Initilized k8s CLient")
-
-	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
-	config, err := buildConfig(kubeConfigFile)
-	if err != nil {
-		panic(err)
-	}
-
-
-	var tprconfig *rest.Config
-	tprconfig = config
-	configureClient(tprconfig)
-
-
-	tprclient, err := rest.RESTClientFor(tprconfig)
-	if err != nil {
-		panic(err)
-	}
-
-
-	// Fetch a list of our TPRs
-	exampleList := spec.KafkaClusterList{}
-	err = tprclient.Get().Resource("examples").Do().Into(&exampleList)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("LIST: %#v\n", exampleList)
 
 	return k, nil
 
@@ -130,8 +112,8 @@ func buildConfig(kubeconfig string) (*rest.Config, error) {
 
 func configureClient(config *rest.Config) {
 	groupversion := schema.GroupVersion{
-		Group:   "k8s.io",
-		Version: "v1",
+		Group:   tprSuffix,
+		Version: tprVersion,
 	}
 
 	config.GroupVersion = &groupversion
@@ -152,8 +134,34 @@ func configureClient(config *rest.Config) {
 	schemeBuilder.AddToScheme(scheme.Scheme)
 }
 
+func newTPRClient(config *rest.Config) (*rest.RESTClient, error) {
 
+	var tprconfig *rest.Config
+	tprconfig = config
+	configureClient(tprconfig)
 
+	fmt.Println(tprconfig)
+
+	tprclient, err := rest.RESTClientFor(tprconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	// Fetch a list of our TPRs
+	exampleList := spec.KafkaClusterList{}
+
+	err = tprclient.Get().Resource(tprApiName).Do().Into(&exampleList)
+	fmt.Printf("LIST: %#v\n", exampleList, err)
+	if err != nil {
+		logger.Warn("Error: ", err)
+	}
+	fmt.Printf("LIST: %#v\n", exampleList)
+	//panic("exit")
+
+	return tprclient, nil
+}
+
+//TODO refactor for config *rest.Config :)
 func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 
 	var client *k8sclient.Clientset
@@ -174,7 +182,7 @@ func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 			return nil, err
 		}
 	} else {
-		fmt.Println("Using OutOfCluster k8s config with kubeConfigFile: %s", kubeCfgFile)
+		fmt.Println("Using OutOfCluster k8s config with kubeConfigFile: ", kubeCfgFile)
 		cfg, err := clientcmd.BuildConfigFromFlags("", kubeCfgFile)
 
 		if err != nil {
@@ -194,28 +202,25 @@ func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 
 func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
 	methodLogger := logger.WithFields(log.Fields{"method": "GetKafkaClusters", })
-	//var resp *http.Response
-	var err error
 
-	transport := &http.Transport{ TLSClientConfig: &tls.Config{InsecureSkipVerify:true} }
 
-	//We go over the http because go client cant do tpr?
-	httpClient := http.Client{Transport: transport}
-	response, err := httpClient.Get(c.MasterHost + getEndpoint)
+	exampleList := spec.KafkaClusterList{}
+	err := c.tprClient.Get().Resource(tprApiName).Do().Into(&exampleList)
+
 	if err != nil {
 		fmt.Println("Error while getting resonse from API: ", err)
 		methodLogger.WithFields(log.Fields{
-			"response":response,
+			"response":exampleList,
 			"error": err,
 
 		}).Error("Error response from API")
 		return nil, err
 	}
 	methodLogger.WithFields(log.Fields{
-		"response": response,
+		"response": exampleList,
 	}).Info("KafkaCluster received")
 
-	return nil, nil
+	return exampleList.Items, nil
 }
 /// Create a the thirdparty ressource inside the Kubernetws Cluster
 func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
@@ -247,45 +252,101 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 	return nil
 }
 
-func (c *ClientUtil)MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, errorChannel chan error)  {
-	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents",})
-	go func() {
-		for {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			}
-			client := &http.Client{Transport: tr}
+func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
 
-			fmt.Println("Trying API: ", c.MasterHost , watchEndpoint)
-			response, err := client.Get(c.MasterHost + watchEndpoint)
-			if err != nil {
-				methodLogger.WithFields(log.Fields{
-					"error":err,
-					"response": response,
-				}).Error("Error reading API, sleeping 2 seconds")
-				errorChannel <- err
-				time.Sleep(2 * time.Second)
-				continue
-			}
-			methodLogger.WithFields(log.Fields{"response": response,}).Info("Response from API, parsing ...")
-			decoder := json.NewDecoder(response.Body)
-			for {
+	stop := make(chan struct{}, 1)
+	source := cache.NewListWatchFromClient(
+		client,
+		tprApiName,
+		v1.NamespaceAll,
+		fields.Everything())
+
+	store, controller := cache.NewInformer(
+		source,
+
+		// The object type.
+		&spec.KafkaCluster{},
+
+		// resyncPeriod
+		// Every resyncPeriod, all resources in the cache will retrigger events.
+		// Set to 0 to disable the resync.
+		time.Second*0,
+
+		// Your custom resource event handlers.
+		cache.ResourceEventHandlerFuncs{
+			// Takes a single argument of type interface{}.
+			// Called on controller startup and when new resources are created.
+			AddFunc: func(obj interface{}) {
+				cluster := obj.(*spec.KafkaCluster)
+				fmt.Println("create", spec.PrintCluster(cluster))
 				var event spec.KafkaClusterWatchEvent
-				err = decoder.Decode(&event)
-				if err != nil {
-					methodLogger.WithFields(log.Fields{
-						"error":err,
-						"response.body": response.Body,
-					}).Error("Error decoding TPR response")
-					errorChannel <- err
-					break
-				}
-				methodLogger.WithFields(log.Fields{"event":event,}).Debug("Parsed KafkaWatchEvent")
+				//TODO
+				event.Type = "ADDED"
+				event.Object = *cluster
 				eventsChannel <- event
-			}
-			time.Sleep(2 * time.Second)
+			},
+
+			// Takes two arguments of type interface{}.
+			// Called on resource update and every resyncPeriod on existing resources.
+			UpdateFunc: func (old, new interface{}) {
+				oldCluster := old.(*spec.KafkaCluster)
+				newCluster := new.(*spec.KafkaCluster)
+				fmt.Printf("UPDATED:\n  old: %s\n  new: %s\n", spec.PrintCluster(oldCluster), spec.PrintCluster(newCluster))
+				var event spec.KafkaClusterWatchEvent
+				//TODO refactor this.
+				event.Type = "UPDATED"
+				event.Object = *newCluster
+				eventsChannel <- event
+			},
+
+			// Takes a single argument of type interface{}.
+			// Called on resource deletion.
+			DeleteFunc: func (obj interface{}) {
+				cluster := obj.(*spec.KafkaCluster)
+				fmt.Println("delete", spec.PrintCluster(cluster))
+				var event spec.KafkaClusterWatchEvent
+				event.Type = "DELETE"
+				event.Object = *cluster
+				eventsChannel <- event
+			},
+		})
+
+	// store can be used to List and Get
+	// NEVER modify objects from the store. It's a read-only, local cache.
+	fmt.Println("listing examples from store:")
+	for _, obj := range store.List() {
+		example := obj.(*spec.KafkaCluster)
+
+		// This will likely be empty the first run, but may not
+		fmt.Printf("%#v\n", example)
+	}
+
+	// the controller run starts the event processing loop
+	go controller.Run(stop)
+
+	go func() {
+		select {
+		case <-signalChannel:
+			fmt.Printf("received signal %#v, exiting...\n")
+			close(stop)
 		}
 	}()
+
+}
+
+
+
+
+func delete(obj interface{}) {
+	cluster := obj.(*spec.KafkaCluster)
+	fmt.Println("delete", spec.PrintCluster(cluster))
+}
+
+
+func (c *ClientUtil) MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int)  {
+	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents",})
+	methodLogger.Info("Starting Watch")
+	Watch(c.tprClient, eventsChannel, signalChannel)
 }
 
 func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
