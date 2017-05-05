@@ -8,7 +8,7 @@ import (
 	//"crypto/tls"
 	"github.com/krallistic/kafka-operator/spec"
 	//"net/http"
-	"time"
+	//"time"
 	//"encoding/json"
 
 
@@ -253,6 +253,8 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 }
 
 func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
+	methodLogger := logger.WithFields(log.Fields{"method": "Watch",})
+
 
 	stop := make(chan struct{}, 1)
 	source := cache.NewListWatchFromClient(
@@ -264,13 +266,12 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 	store, controller := cache.NewInformer(
 		source,
 
-		// The object type.
 		&spec.KafkaCluster{},
 
 		// resyncPeriod
 		// Every resyncPeriod, all resources in the cache will retrigger events.
 		// Set to 0 to disable the resync.
-		time.Second*0,
+		0,
 
 		// Your custom resource event handlers.
 		cache.ResourceEventHandlerFuncs{
@@ -278,11 +279,12 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 			// Called on controller startup and when new resources are created.
 			AddFunc: func(obj interface{}) {
 				cluster := obj.(*spec.KafkaCluster)
-				fmt.Println("create", spec.PrintCluster(cluster))
+				methodLogger.WithFields(log.Fields{"watchFunction": "ADDED"}).Info(spec.PrintCluster(cluster))
 				var event spec.KafkaClusterWatchEvent
 				//TODO
 				event.Type = "ADDED"
 				event.Object = *cluster
+				fmt.Println(event)
 				eventsChannel <- event
 			},
 
@@ -296,6 +298,7 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 				//TODO refactor this.
 				event.Type = "UPDATED"
 				event.Object = *newCluster
+				fmt.Println(event)
 				eventsChannel <- event
 			},
 
@@ -313,16 +316,17 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 
 	// store can be used to List and Get
 	// NEVER modify objects from the store. It's a read-only, local cache.
-	fmt.Println("listing examples from store:")
-	for _, obj := range store.List() {
-		example := obj.(*spec.KafkaCluster)
-
-		// This will likely be empty the first run, but may not
-		fmt.Printf("%#v\n", example)
-	}
+//	fmt.Println("listing examples from store:")
+//	for _, obj := range store.List() {
+//		example := obj.(*spec.KafkaCluster)
+//
+//		// This will likely be empty the first run, but may not
+//		fmt.Printf("%#v\n", example)
+//	}
 
 	// the controller run starts the event processing loop
 	go controller.Run(stop)
+	fmt.Println(store)
 
 	go func() {
 		select {
@@ -332,14 +336,6 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 		}
 	}()
 
-}
-
-
-
-
-func delete(obj interface{}) {
-	cluster := obj.(*spec.KafkaCluster)
-	fmt.Println("delete", spec.PrintCluster(cluster))
 }
 
 
@@ -430,8 +426,6 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 		//Service dosnt exist, creating new.
 		fmt.Println("Service dosnt exist, creating new")
 
-
-
 		objectMeta := metav1.ObjectMeta{
 			Name: name,
 			Annotations: map[string]string{
@@ -448,7 +442,6 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 			}
 			objectMeta.Name = name
 		}
-
 
 		service := &v1.Service{
 			ObjectMeta: objectMeta,
@@ -722,7 +715,6 @@ func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error{
 		}
 		fmt.Println(new_pv)
 	}
-
 
 	return nil
 

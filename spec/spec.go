@@ -12,8 +12,8 @@ import (
 type KafkaCluster struct {
 	metav1.TypeMeta `json:",inline"`
 	Metadata metav1.ObjectMeta `json:"metadata"`
-	APIVersion string `json:"apiVersion"`
-	Kind string `json:"kind"`
+	//APIVersion string `json:"apiVersion"`
+	//Kind string `json:"kind"`
 	Spec KafkaClusterSpec `json:"spec"`
 }
 

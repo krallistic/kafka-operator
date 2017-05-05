@@ -62,7 +62,8 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 		return clusterEvent
 	//EVENT type must be modfied now
 	} else if p.util.BrokerStatefulSetExist(event.Object){
-		clusterEvent.Type = spec.NEW_CLUSTER
+		clusterEvent.Type = spec.UNKNOWN_CHANGE
+		//TODO change to reconsilation event?
 		return clusterEvent
 	} else if p.util.BrokerStSImageUpdate(event.Object) {
 		clusterEvent.Type = spec.CHANGE_IMAGE
