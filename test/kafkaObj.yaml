@@ -1,0 +1,30 @@
+apiVersion: "incubator.test.com/v1"
+kind: "KafkaCluster"
+metadata:
+  name: test-cluster-1
+  namespace: test
+spec:
+    brokerCount: 2
+    topics:
+      - name: "test1"
+        replicationFactor: 1
+        partitions: 1
+      - name: "test2"
+        replicationFactor: 2
+        partitions: 2
+    kafkaOptions:
+       logRetentionHours: 24
+       autoCreateTopics: false
+       compressionType: "gzip"
+    zookeeperConnect: zk-headless.default.svc.cluster.local
+    image: confluentinc/cp-kafka:latest
+    leaderImbalanceRatio: 0.1
+    leaderImbalanceInterval: 600
+    storageClass: emptyDir
+    minimumGracePeriod: 1200
+    jmxSidecar: false
+    resources:
+      cpu: "1"
+      memory: "1Gi"
+      diskSpace: "50G"
+
