@@ -116,7 +116,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		}
 
 		go func() {
-			time.Sleep(5 * time.Minute)
+			time.Sleep(time.Duration(currentEvent.Cluster.Spec.BrokerCount) * time.Minute)
 			//TODO dynamic sleep, depending till sts is completely scaled down.
 			clusterEvent := spec.KafkaClusterEvent{
 				Cluster: currentEvent.Cluster,
@@ -159,7 +159,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			time.Sleep(30 * time.Second)
 			p.clusterEvents <- currentEvent
 		}()
-		p.kafkaClient.ListTopics()
+		//p.kafkaClient.ListTopics()
 
 	}
 }
