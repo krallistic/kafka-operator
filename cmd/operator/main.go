@@ -1,37 +1,35 @@
 package main
 
 import (
-	"fmt"
-	"os/signal"
 	"flag"
+	"fmt"
 	"github.com/krallistic/kafka-operator/util"
+	"os/signal"
 
+	"github.com/krallistic/kafka-operator/processor"
 	"os"
 	"syscall"
-	"github.com/krallistic/kafka-operator/processor"
 
-	"net/http"
 	log "github.com/Sirupsen/logrus"
+	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	version = "0.0.1"
-	kubeConfigFile string
-	print bool
-	masterHost string
-	image string
+	version          = "0.0.1"
+	kubeConfigFile   string
+	print            bool
+	masterHost       string
+	image            string
 	zookeeperConnect string
 
-
 	metricListenAddress string
-	metricListenPath string
-	logger = log.WithFields(log.Fields{
+	metricListenPath    string
+	logger              = log.WithFields(log.Fields{
 		"package": "main",
 	})
 )
-
 
 func init() {
 	flag.BoolVar(&print, "print", false, "Show basic information and quit - debug")
@@ -48,21 +46,21 @@ func init() {
 
 func Main() int {
 	logger.WithFields(log.Fields{
-		"version": version,
-		"masterHost": masterHost,
-		"kubeconfig": kubeConfigFile,
-		"image": image,
+		"version":               version,
+		"masterHost":            masterHost,
+		"kubeconfig":            kubeConfigFile,
+		"image":                 image,
 		"metric-listen-address": metricListenAddress,
-		"metric-listen-path": metricListenPath,
+		"metric-listen-path":    metricListenPath,
 	}).Info("Started kafka-operator with args")
 	if print {
-		logger.WithFields(log.Fields{"version": version,}).Print("Operator Version")
+		logger.WithFields(log.Fields{"version": version}).Print("Operator Version")
 		return 0
 	}
 	k8sclient, err := util.New(kubeConfigFile, masterHost)
 	if err != nil {
 		logger.WithFields(log.Fields{
-			"error": err,
+			"error":      err,
 			"configFile": kubeConfigFile,
 			"masterHost": masterHost,
 		}).Fatal("Error initilizing kubernetes client ")
@@ -73,7 +71,7 @@ func Main() int {
 
 	k8sclient.CreateKubernetesThirdPartyResource()
 	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
-	
+
 	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, controlChannel)
 	processor.WatchKafkaEvents()
 
@@ -83,9 +81,10 @@ func Main() int {
 	http.Handle(metricListenPath, promhttp.Handler())
 	logger.Fatal(http.ListenAndServe(metricListenAddress, nil))
 
-	runningLoop: for {
+runningLoop:
+	for {
 		select {
-		case sig :=  <- osSignals:
+		case sig := <-osSignals:
 			logger.WithFields(log.Fields{"signal": sig}).Info("Got Signal from OS shutting Down: ")
 			break runningLoop
 		}
@@ -96,8 +95,6 @@ func Main() int {
 
 	return 0
 }
-
-
 
 func main() {
 	os.Exit(Main())

@@ -1,7 +1,6 @@
 package util
 
 import (
-
 	"fmt"
 
 	//TODO cleanup dependencies
@@ -10,7 +9,6 @@ import (
 	//"net/http"
 	//"time"
 	//"encoding/json"
-
 
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -25,58 +23,53 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
 	log "github.com/Sirupsen/logrus"
-//	"k8s.io/client-go/tools/cache"
-//	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
-
+	//	"k8s.io/client-go/tools/cache"
+	//	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
 )
 
 const (
 	tprShortName = "kafka-cluster"
-	tprSuffix = "incubator.test.com"
-	tprFullName = tprShortName + "." + tprSuffix
+	tprSuffix    = "incubator.test.com"
+	tprFullName  = tprShortName + "." + tprSuffix
 	//API Name is used in the watch of the API, it defined as tprShorName, removal of -, and suffix s
 	tprApiName = "kafkaclusters"
 	tprVersion = "v1"
 
-	tprName = "kafka.operator.com"
+	tprName     = "kafka.operator.com"
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
-	defaultCPU = "1"
+	defaultCPU  = "1"
 	defaultDisk = "100G"
-
-
 )
 
 var (
-	getEndpoint = fmt.Sprintf("/apis/%s/%s/%s", tprSuffix, tprVersion, tprApiName)
+	getEndpoint   = fmt.Sprintf("/apis/%s/%s/%s", tprSuffix, tprVersion, tprApiName)
 	watchEndpoint = fmt.Sprintf("/apis/%s/%s/watch/%s", tprSuffix, tprVersion, tprApiName)
-	logger = log.WithFields(log.Fields{
+	logger        = log.WithFields(log.Fields{
 		"package": "util",
 	})
 )
 
-
-
 type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
-	MasterHost string
-	DefaultOption metav1.GetOptions
-	tprClient *rest.RESTClient
+	MasterHost       string
+	DefaultOption    metav1.GetOptions
+	tprClient        *rest.RESTClient
 }
 
 func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaCluster) *log.Entry {
-	return logger.WithFields(log.Fields{"clusterName" : cluster.Metadata.Name, "namespace": cluster.Metadata.Name})
+	return logger.WithFields(log.Fields{"clusterName": cluster.Metadata.Name, "namespace": cluster.Metadata.Name})
 }
 
-func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
+func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := buildConfig(kubeConfigFile)
@@ -94,8 +87,8 @@ func New(kubeConfigFile, masterHost string) (*ClientUtil, error)  {
 
 	k := &ClientUtil{
 		KubernetesClient: client,
-		MasterHost: masterHost,
-		tprClient:tprClient,
+		MasterHost:       masterHost,
+		tprClient:        tprClient,
 	}
 	fmt.Println("Initilized k8s CLient")
 
@@ -201,8 +194,7 @@ func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 }
 
 func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
-	methodLogger := logger.WithFields(log.Fields{"method": "GetKafkaClusters", })
-
+	methodLogger := logger.WithFields(log.Fields{"method": "GetKafkaClusters"})
 
 	exampleList := spec.KafkaClusterList{}
 	err := c.tprClient.Get().Resource(tprApiName).Do().Into(&exampleList)
@@ -210,9 +202,8 @@ func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
 	if err != nil {
 		fmt.Println("Error while getting resonse from API: ", err)
 		methodLogger.WithFields(log.Fields{
-			"response":exampleList,
-			"error": err,
-
+			"response": exampleList,
+			"error":    err,
 		}).Error("Error response from API")
 		return nil, err
 	}
@@ -222,9 +213,10 @@ func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
 
 	return exampleList.Items, nil
 }
+
 /// Create a the thirdparty ressource inside the Kubernetws Cluster
-func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
-	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource",})
+func (c *ClientUtil) CreateKubernetesThirdPartyResource() error {
+	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource"})
 	tpr, err := c.KubernetesClient.ExtensionsV1beta1Client.ThirdPartyResources().Get(tprFullName, c.DefaultOption)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -241,10 +233,10 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 			}
 			retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
 			if err != nil {
-				methodLogger.WithFields(log.Fields{"response": err, }).Error("Error creating ThirdPartyRessources")
+				methodLogger.WithFields(log.Fields{"response": err}).Error("Error creating ThirdPartyRessources")
 				panic(err)
 			}
-			methodLogger.WithFields(log.Fields{"response": retVal, }).Debug("Created KafkaCluster TPR")
+			methodLogger.WithFields(log.Fields{"response": retVal}).Debug("Created KafkaCluster TPR")
 		}
 	} else {
 		methodLogger.Info("KafkaCluster TPR already exist", tpr)
@@ -253,8 +245,7 @@ func (c *ClientUtil)CreateKubernetesThirdPartyResource() error  {
 }
 
 func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
-	methodLogger := logger.WithFields(log.Fields{"method": "Watch",})
-
+	methodLogger := logger.WithFields(log.Fields{"method": "Watch"})
 
 	stop := make(chan struct{}, 1)
 	source := cache.NewListWatchFromClient(
@@ -290,7 +281,7 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 
 			// Takes two arguments of type interface{}.
 			// Called on resource update and every resyncPeriod on existing resources.
-			UpdateFunc: func (old, new interface{}) {
+			UpdateFunc: func(old, new interface{}) {
 				oldCluster := old.(*spec.KafkaCluster)
 				newCluster := new.(*spec.KafkaCluster)
 				fmt.Printf("UPDATED:\n  old: %s\n  new: %s\n", spec.PrintCluster(oldCluster), spec.PrintCluster(newCluster))
@@ -304,7 +295,7 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 
 			// Takes a single argument of type interface{}.
 			// Called on resource deletion.
-			DeleteFunc: func (obj interface{}) {
+			DeleteFunc: func(obj interface{}) {
 				cluster := obj.(*spec.KafkaCluster)
 				fmt.Println("delete", spec.PrintCluster(cluster))
 				var event spec.KafkaClusterWatchEvent
@@ -316,13 +307,13 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 
 	// store can be used to List and Get
 	// NEVER modify objects from the store. It's a read-only, local cache.
-//	fmt.Println("listing examples from store:")
-//	for _, obj := range store.List() {
-//		example := obj.(*spec.KafkaCluster)
-//
-//		// This will likely be empty the first run, but may not
-//		fmt.Printf("%#v\n", example)
-//	}
+	//	fmt.Println("listing examples from store:")
+	//	for _, obj := range store.List() {
+	//		example := obj.(*spec.KafkaCluster)
+	//
+	//		// This will likely be empty the first run, but may not
+	//		fmt.Printf("%#v\n", example)
+	//	}
 
 	// the controller run starts the event processing loop
 	go controller.Run(stop)
@@ -338,9 +329,8 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 
 }
 
-
-func (c *ClientUtil) MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int)  {
-	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents",})
+func (c *ClientUtil) MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
+	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents"})
 	methodLogger.Info("Starting Watch")
 	Watch(c.tprClient, eventsChannel, signalChannel)
 }
@@ -357,7 +347,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 	brokerCount := cluster.Spec.BrokerCount
 	fmt.Println("Creating N direkt broker SVCs, ", brokerCount)
 
-	for  i := 0; i < 3 ; i++  {
+	for i := 0; i < 3; i++ {
 		//TODO name dependend on cluster metadata
 		name := "broker-" + string(i)
 		fmt.Println("Creating Direct Broker SVC: ", i, name)
@@ -374,8 +364,8 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 				Annotations: map[string]string{
 					"component": "kafka",
 					"name":      name,
-					"role": "data",
-					"type": "service",
+					"role":      "data",
+					"type":      "service",
 				},
 			}
 			service := &v1.Service{
@@ -384,14 +374,14 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 				Spec: v1.ServiceSpec{
 					Selector: map[string]string{
 						"component": "kafka",
-						"creator": "kafkaOperator",
+						"creator":   "kafkaOperator",
 						"role":      "data",
-						"name": name,
+						"name":      name,
 					},
 					Ports: []v1.ServicePort{
 						v1.ServicePort{
-							Name:     "broker",
-							Port:     9092,
+							Name: "broker",
+							Port: 9092,
 						},
 					},
 				},
@@ -406,8 +396,6 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 		}
 
 	}
-
-
 
 	return nil
 }
@@ -431,8 +419,8 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 			Annotations: map[string]string{
 				"component": "kafka",
 				"name":      name,
-				"role": "data",
-				"type": "service",
+				"role":      "data",
+				"type":      "service",
 			},
 		}
 
@@ -449,14 +437,14 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 			Spec: v1.ServiceSpec{
 				Selector: map[string]string{
 					"component": "kafka",
-					"creator": "kafkaOperator",
+					"creator":   "kafkaOperator",
 					"role":      "data",
-					"name": name,
+					"name":      name,
 				},
 				Ports: []v1.ServicePort{
 					v1.ServicePort{
-						Name:     "broker",
-						Port:     9092,
+						Name: "broker",
+						Port: 9092,
 					},
 				},
 				ClusterIP: "None",
@@ -476,12 +464,11 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 	return nil
 }
 
-
 //TODO caching of the STS
 func (c *ClientUtil) BrokerStatefulSetExist(cluster spec.KafkaCluster) bool {
 
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
-	if err != nil ||  len(statefulSet.Name) == 0 {
+	if err != nil || len(statefulSet.Name) == 0 {
 		return false
 	}
 	return true
@@ -513,7 +500,7 @@ func (c *ClientUtil) BrokerStSDownsize(cluster spec.KafkaCluster) bool {
 }
 
 func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.StatefulSet {
-	methodLogger := logger.WithFields(log.Fields{"method": "createStsFromSpec",})
+	methodLogger := logger.WithFields(log.Fields{"method": "createStsFromSpec"})
 	methodLogger = EnrichSpecWithLogger(methodLogger, cluster)
 
 	name := cluster.Metadata.Name
@@ -535,9 +522,9 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 			Name: name,
 			Labels: map[string]string{
 				"component": "kafka",
-				"creator": "kafkaOperator",
+				"creator":   "kafkaOperator",
 				"role":      "data",
-				"name": name,
+				"name":      name,
 			},
 		},
 		Spec: appsv1Beta1.StatefulSetSpec{
@@ -548,15 +535,15 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"component": "kafka",
-						"creator": "kafkaOperator",
-						"role": "data",
-						"name": name,
+						"creator":   "kafkaOperator",
+						"role":      "data",
+						"name":      name,
 					},
 				},
-				Spec:v1.PodSpec{
+				Spec: v1.PodSpec{
 					InitContainers: []v1.Container{
 						v1.Container{
-							Name: "labeler",
+							Name:  "labeler",
 							Image: "devth/k8s-labeler", //TODO fullName, config
 							Env: []v1.EnvVar{
 								v1.EnvVar{
@@ -578,7 +565,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							},
 						},
 						v1.Container{
-							Name: "zookeeper-ready",
+							Name:  "zookeeper-ready",
 							Image: "busybox", //TODO full Name, config
 							Command: []string{"sh", "-c", fmt.Sprintf(
 								"until nslookup %s; do echo waiting for myservice; sleep 2; done;",
@@ -588,16 +575,16 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 
 					Containers: []v1.Container{
 						v1.Container{
-							Name: "kafka",
+							Name:  "kafka",
 							Image: image,
 							//TODO String replace operator etc
 							Command: []string{"/bin/bash",
-									  "-c",
-								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n" +
-									"set -ex\n" +
-									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n" +
-									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n" +
-									"/etc/confluent/docker/run",name),
+								"-c",
+								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n"+
+									"set -ex\n"+
+									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n"+
+									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n"+
+									"/etc/confluent/docker/run", name),
 							},
 							Env: []v1.EnvVar{
 								v1.EnvVar{
@@ -615,7 +602,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							},
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
-									Name: "kafka",
+									Name:          "kafka",
 									ContainerPort: 9092,
 								},
 							},
@@ -624,20 +611,17 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 									v1.ResourceCPU: cpus,
 								},
 							},
-
 						},
 					},
 				},
-
-
 			},
 			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
 				v1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "kafka-data",
+						Name:        "kafka-data",
 						Annotations: map[string]string{
-							//TODO make storageClass Optinal
-							//"volume.beta.kubernetes.io/storage-class": "anything",
+						//TODO make storageClass Optinal
+						//"volume.beta.kubernetes.io/storage-class": "anything",
 						},
 					},
 					Spec: v1.PersistentVolumeClaimSpec{
@@ -657,15 +641,14 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 	return statefulSet
 }
 
-
 func (c *ClientUtil) UpsizeBrokerStS(cluster spec.KafkaCluster) error {
 
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
-	if err != nil ||  len(statefulSet.Name) == 0 {
+	if err != nil || len(statefulSet.Name) == 0 {
 		return err
 	}
 	statefulSet.Spec.Replicas = &cluster.Spec.BrokerCount
-	_ ,err = c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Update(statefulSet)
+	_, err = c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Update(statefulSet)
 
 	if err != nil {
 		fmt.Println("Error while updating Broker Count")
@@ -676,12 +659,12 @@ func (c *ClientUtil) UpsizeBrokerStS(cluster spec.KafkaCluster) error {
 
 func (c *ClientUtil) UpdateBrokerImage(cluster spec.KafkaCluster) error {
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
-	if err != nil ||  len(statefulSet.Name) == 0 {
+	if err != nil || len(statefulSet.Name) == 0 {
 		return err
 	}
 	statefulSet.Spec.Template.Spec.Containers[0].Image = cluster.Spec.Image
 
-	_ ,err = c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Update(statefulSet)
+	_, err = c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Update(statefulSet)
 
 	if err != nil {
 		fmt.Println("Error while updating Broker Count")
@@ -691,27 +674,26 @@ func (c *ClientUtil) UpdateBrokerImage(cluster spec.KafkaCluster) error {
 	return nil
 }
 
-func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error{
+func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error {
 	fmt.Println("Creating Persistent Volumes for KafkaCluster")
 
 	pv, err := c.KubernetesClient.PersistentVolumes().Get("testpv-1", c.DefaultOption)
-	if err != nil  {
+	if err != nil {
 		return err
 	}
 	if len(pv.Name) == 0 {
 		fmt.Println("PersistentVolume dosnt exist, creating")
 		new_pv := v1.PersistentVolume{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:"test-1",
+				Name: "test-1",
 			},
 			Spec: v1.PersistentVolumeSpec{
-				AccessModes:[]v1.PersistentVolumeAccessMode{
+				AccessModes: []v1.PersistentVolumeAccessMode{
 					v1.ReadWriteOnce,
 				},
 				//Capacity: Reso
 
 			},
-
 		}
 		fmt.Println(new_pv)
 	}
@@ -736,8 +718,8 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 		fmt.Println("Error while deleting Broker Service: ", err)
 	}
 
-	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)//Scaling Replicas down to Zero
-	if (len(statefulSet.Name) == 0 ) && ( err != nil) {
+	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption) //Scaling Replicas down to Zero
+	if (len(statefulSet.Name) == 0) && (err != nil) {
 		fmt.Println("Error while getting StS from k8s: ", err)
 	}
 
@@ -752,11 +734,9 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 	//Delete Volumes
 	//TODO when volumes are implemented
 
-
 	//TODO better Error handling
 	return err
 }
-
 
 func (c *ClientUtil) CreateBrokerStatefulSet(cluster spec.KafkaCluster) error {
 

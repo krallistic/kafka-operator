@@ -1,22 +1,21 @@
 package kafka
 
 import (
-	"github.com/Shopify/sarama"
 	"fmt"
+	"github.com/Shopify/sarama"
 	"github.com/krallistic/kafka-operator/spec"
 )
 
 type KafkaUtil struct {
 	KafkaClient sarama.Client
-	BrokerList []string
+	BrokerList  []string
 	ClusterName string
 }
 
-
-func  New(brokerList []string, clusterName string) (*KafkaUtil, error){
+func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
 	config := sarama.NewConfig()
 
-	fmt.Println("Creating KafkaUtil for cluster with Brokers: ", clusterName, brokerList )
+	fmt.Println("Creating KafkaUtil for cluster with Brokers: ", clusterName, brokerList)
 
 	client, err := sarama.NewClient(brokerList, config)
 	if err != nil {
@@ -26,7 +25,7 @@ func  New(brokerList []string, clusterName string) (*KafkaUtil, error){
 	k := &KafkaUtil{
 		KafkaClient: client,
 		ClusterName: clusterName,
-		BrokerList: brokerList,
+		BrokerList:  brokerList,
 	}
 
 	fmt.Println("Initilized Kafka CLient")
@@ -40,12 +39,11 @@ func (k *KafkaUtil) ListTopics() ([]string, error) {
 		return nil, err
 	}
 
-	for _,t := range topics {
+	for _, t := range topics {
 		fmt.Println("Current topic:", t)
 	}
 	return topics, nil
 }
-
 
 func (k *KafkaUtil) CreateTopic(topicSpec spec.KafkaTopicSpec) error {
 	fmt.Println("Creating Kafka Topics: ", topicSpec)

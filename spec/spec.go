@@ -1,17 +1,16 @@
 package spec
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"encoding/json"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"fmt"
 )
 
-
 type KafkaCluster struct {
 	metav1.TypeMeta `json:",inline"`
-	Metadata metav1.ObjectMeta `json:"metadata"`
+	Metadata        metav1.ObjectMeta `json:"metadata"`
 	//APIVersion string `json:"apiVersion"`
 	//Kind string `json:"kind"`
 	Spec KafkaClusterSpec `json:"spec"`
@@ -19,76 +18,69 @@ type KafkaCluster struct {
 
 type KafkaClusterList struct {
 	metav1.TypeMeta `json:",inline"`
-	Metadata  metav1.ListMeta `json:"metadata"`
+	Metadata        metav1.ListMeta `json:"metadata"`
 
 	Items []KafkaCluster `json:"items"`
 }
 
-
-
 type KafkaClusterSpec struct {
 	//Amount of Broker Nodes
-	Image string `json:"image"`
-	BrokerCount int32 `json:"brokerCount"`
-	Resources ResourceSpec `json:"resources"`
-	KafkaOptions KafkaOption `json:"kafkaOptions"`
-	jmxSidecar bool `json:"jmxSidecar"`
-	Topics []KafkaTopicSpec `json:"topics"`
-	ZookeeperConnect string `json:"zookeeperConnect"`
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-	StorageClass string `json:"storageClass"` //TODO use k8s type?
+	Image            string            `json:"image"`
+	BrokerCount      int32             `json:"brokerCount"`
+	Resources        ResourceSpec      `json:"resources"`
+	KafkaOptions     KafkaOption       `json:"kafkaOptions"`
+	jmxSidecar       bool              `json:"jmxSidecar"`
+	Topics           []KafkaTopicSpec  `json:"topics"`
+	ZookeeperConnect string            `json:"zookeeperConnect"`
+	NodeSelector     map[string]string `json:"nodeSelector,omitempty"`
+	StorageClass     string            `json:"storageClass"` //TODO use k8s type?
 
 	// Toleration time if node is down/unreachable/not ready before moving to a new net
 	// Set to 0 to disable moving to all together.
 	MinimumGracePeriod int32 `json:"minimumGracePeriod"`
 
-	LeaderImbalanceRatio float32 `json:"leaderImbalanceRatio"`
-	LeaderImbalanceInterval int32 `json:"leaderImbalanceInterval"`
-
+	LeaderImbalanceRatio    float32 `json:"leaderImbalanceRatio"`
+	LeaderImbalanceInterval int32   `json:"leaderImbalanceInterval"`
 }
 
 //TODO refactor to just use native k8s types
 type ResourceSpec struct {
-	Memory string `json:"memory"`
+	Memory    string `json:"memory"`
 	DiskSpace string `json:"diskSpace"`
-	CPU string `json:"cpu"`
+	CPU       string `json:"cpu"`
 }
 
 type KafkaBrokerSpec struct {
 	BrokerID int32 `json:"brokerID"`
 
-	ClientPort int32 `json:"clientPort"`
-	Topics map[string]string `json:"topics"`
+	ClientPort int32             `json:"clientPort"`
+	Topics     map[string]string `json:"topics"`
 }
 
 type KafkaTopicSpec struct {
-	Name string `json:"name"`
-	Partitions int32 `json:"partitions"`
-	ReplicationFactor int32 `json:"replicationFactor"`
+	Name              string `json:"name"`
+	Partitions        int32  `json:"partitions"`
+	ReplicationFactor int32  `json:"replicationFactor"`
 }
 
 type KafkaClusterWatchEvent struct {
-	Type string `json:"type"`
+	Type   string       `json:"type"`
 	Object KafkaCluster `json:"object"`
 }
 
 type KafkaOption struct {
-	LogRetentionHours int `json:"logRetentionHours"`
-	AutoCreateTopics bool `json:"autoCreateTopics"`
-	CompressionType string `json:compressionType`
-	
+	LogRetentionHours int    `json:"logRetentionHours"`
+	AutoCreateTopics  bool   `json:"autoCreateTopics"`
+	CompressionType   string `json:compressionType`
 }
-
 
 //No json needed since internal Event type.
 type KafkaClusterEvent struct {
-	Type KafkaEventType
+	Type    KafkaEventType
 	Cluster KafkaCluster
 }
 
-
 type KafkaEventType int32
-
 
 const (
 	NEW_CLUSTER KafkaEventType = iota + 1
@@ -106,9 +98,7 @@ const (
 	//Its ensure the deletion of the Statefulset after it has been scaled down.
 	CLEANUP_EVENT
 	KAKFA_EVENT
-
 )
-
 
 // convenience functions
 func PrintCluster(cluster *KafkaCluster) string {
