@@ -308,7 +308,7 @@ func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEve
 				cluster := obj.(*spec.KafkaCluster)
 				fmt.Println("delete", spec.PrintCluster(cluster))
 				var event spec.KafkaClusterWatchEvent
-				event.Type = "DELETE"
+				event.Type = "DELETED"
 				event.Object = *cluster
 				eventsChannel <- event
 			},
