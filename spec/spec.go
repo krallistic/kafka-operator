@@ -37,7 +37,7 @@ type KafkaClusterSpec struct {
 
 	// Toleration time if node is down/unreachable/not ready before moving to a new net
 	// Set to 0 to disable moving to all together.
-	MinimumGracePeriod int32 `json:"minimumGracePeriod"`
+	MinimumGracePeriod int64 `json:"minimumGracePeriod"`
 
 	LeaderImbalanceRatio    float32 `json:"leaderImbalanceRatio"`
 	LeaderImbalanceInterval int32   `json:"leaderImbalanceInterval"`

@@ -6,9 +6,6 @@ import (
 	//TODO cleanup dependencies
 	//"crypto/tls"
 	"github.com/krallistic/kafka-operator/spec"
-	//"net/http"
-	//"time"
-	//"encoding/json"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -24,7 +21,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	//	"k8s.io/client-go/tools/cache"
-	//	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
 )
 
 const (
@@ -297,6 +293,20 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 					},
 				},
 				Spec: v1.PodSpec{
+					Tolerations: []v1.Toleration{
+						v1.Toleration{
+							Key: "node.alpha.kubernetes.io/unreachable",
+							Operator: v1.TolerationOpExists,
+							Effect:v1.TaintEffectNoExecute,
+							TolerationSeconds: &cluster.Spec.MinimumGracePeriod,
+						},
+						v1.Toleration{
+							Key: "node.alpha.kubernetes.io/notReady",
+							Operator: v1.TolerationOpExists,
+							Effect:v1.TaintEffectNoExecute,
+							TolerationSeconds: &cluster.Spec.MinimumGracePeriod,
+						},
+					},
 					InitContainers: []v1.Container{
 						v1.Container{
 							Name:  "labeler",
