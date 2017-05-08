@@ -7,12 +7,14 @@ import (
 	"github.com/krallistic/kafka-operator/util"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"time"
+	"github.com/krallistic/kafka-operator/controller"
 )
 
 type Processor struct {
 	client          k8sclient.Clientset
 	baseBrokerImage string
 	util            util.ClientUtil
+	tprController 	controller.ThirdPartyResourceController
 	kafkaClusters   map[string]*spec.KafkaCluster
 	watchEvents     chan spec.KafkaClusterWatchEvent
 	clusterEvents   chan spec.KafkaClusterEvent
@@ -21,7 +23,7 @@ type Processor struct {
 	errors          chan error
 }
 
-func New(client k8sclient.Clientset, image string, util util.ClientUtil, control chan int) (*Processor, error) {
+func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClient controller.ThirdPartyResourceController, control chan int) (*Processor, error) {
 	p := &Processor{
 		client:          client,
 		baseBrokerImage: image,
@@ -29,7 +31,9 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, control
 		kafkaClusters:   make(map[string]*spec.KafkaCluster),
 		watchEvents:     make(chan spec.KafkaClusterWatchEvent, 100),
 		clusterEvents:   make(chan spec.KafkaClusterEvent, 100),
+		tprController: tprClient,
 		control:         control,
+
 		errors:          make(chan error),
 	}
 	fmt.Println("Created Processor")
@@ -39,6 +43,8 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, control
 func (p *Processor) Run() error {
 	//TODO getListOfAlredyRunningCluster/Refresh
 	fmt.Println("Running Processor")
+	p.watchKafkaEvents()
+
 	return nil
 }
 
@@ -166,8 +172,9 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 
 //Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside
-func (p *Processor) WatchKafkaEvents() {
-	p.util.MonitorKafkaEvents(p.watchEvents, p.control)
+func (p *Processor) watchKafkaEvents() {
+
+	p.tprController.MonitorKafkaEvents(p.watchEvents, p.control)
 	fmt.Println("Watching Kafka Events")
 	go func() {
 		for {

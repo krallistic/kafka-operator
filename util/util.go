@@ -10,16 +10,10 @@ import (
 	//"time"
 	//"encoding/json"
 
-	"k8s.io/client-go/kubernetes/scheme"
-
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
+
 	//"k8s.io/client-go/kubernetes"
 	//"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -28,21 +22,13 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/tools/cache"
-
 	log "github.com/Sirupsen/logrus"
 	//	"k8s.io/client-go/tools/cache"
 	//	"github.com/kubernetes/kubernetes/federation/pkg/federation-controller/util"
 )
 
 const (
-	tprShortName = "kafka-cluster"
-	tprSuffix    = "incubator.test.com"
-	tprFullName  = tprShortName + "." + tprSuffix
-	//API Name is used in the watch of the API, it defined as tprShorName, removal of -, and suffix s
-	tprApiName = "kafkaclusters"
-	tprVersion = "v1"
+
 
 	tprName     = "kafka.operator.com"
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
@@ -51,8 +37,6 @@ const (
 )
 
 var (
-	getEndpoint   = fmt.Sprintf("/apis/%s/%s/%s", tprSuffix, tprVersion, tprApiName)
-	watchEndpoint = fmt.Sprintf("/apis/%s/%s/watch/%s", tprSuffix, tprVersion, tprApiName)
 	logger        = log.WithFields(log.Fields{
 		"package": "util",
 	})
@@ -62,7 +46,6 @@ type ClientUtil struct {
 	KubernetesClient *k8sclient.Clientset
 	MasterHost       string
 	DefaultOption    metav1.GetOptions
-	tprClient        *rest.RESTClient
 }
 
 func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaCluster) *log.Entry {
@@ -72,267 +55,40 @@ func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaCluster) *log.Ent
 func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
-	config, err := buildConfig(kubeConfigFile)
-
-	client, err := newKubeClient(kubeConfigFile)
+	client, err := NewKubeClient(kubeConfigFile)
 	if err != nil {
 		fmt.Println("Error, could not Init Kubernetes Client")
-		return nil, err
-	}
-	tprClient, err := newTPRClient(config)
-	if err != nil {
-		fmt.Println("Error, could not Init KafkaCluster TPR Client")
 		return nil, err
 	}
 
 	k := &ClientUtil{
 		KubernetesClient: client,
 		MasterHost:       masterHost,
-		tprClient:        tprClient,
 	}
 	fmt.Println("Initilized k8s CLient")
 
 	return k, nil
-
 }
 
-func buildConfig(kubeconfig string) (*rest.Config, error) {
+func BuildConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig != "" {
 		return clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
 	return rest.InClusterConfig()
 }
 
-func configureClient(config *rest.Config) {
-	groupversion := schema.GroupVersion{
-		Group:   tprSuffix,
-		Version: tprVersion,
-	}
 
-	config.GroupVersion = &groupversion
-	config.APIPath = "/apis"
-	config.ContentType = runtime.ContentTypeJSON
-	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
-
-	schemeBuilder := runtime.NewSchemeBuilder(
-		func(scheme *runtime.Scheme) error {
-			scheme.AddKnownTypes(
-				groupversion,
-				&spec.KafkaCluster{},
-				&spec.KafkaClusterList{},
-			)
-			return nil
-		})
-	metav1.AddToGroupVersion(scheme.Scheme, groupversion)
-	schemeBuilder.AddToScheme(scheme.Scheme)
-}
-
-func newTPRClient(config *rest.Config) (*rest.RESTClient, error) {
-
-	var tprconfig *rest.Config
-	tprconfig = config
-	configureClient(tprconfig)
-
-	fmt.Println(tprconfig)
-
-	tprclient, err := rest.RESTClientFor(tprconfig)
-	if err != nil {
-		panic(err)
-	}
-
-	// Fetch a list of our TPRs
-	exampleList := spec.KafkaClusterList{}
-
-	err = tprclient.Get().Resource(tprApiName).Do().Into(&exampleList)
-	fmt.Printf("LIST: %#v\n", exampleList, err)
-	if err != nil {
-		logger.Warn("Error: ", err)
-	}
-	fmt.Printf("LIST: %#v\n", exampleList)
-	//panic("exit")
-
-	return tprclient, nil
-}
 
 //TODO refactor for config *rest.Config :)
-func newKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
+func NewKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
 
-	var client *k8sclient.Clientset
-
-	// Should we use in cluster or out of cluster config
-	if len(kubeCfgFile) == 0 {
-		fmt.Println("Using InCluster k8s without a kubeconfig")
-		//Depends on k8s env and service account token set.
-		cfg, err := rest.InClusterConfig()
-
-		if err != nil {
-			return nil, err
-		}
-
-		client, err = k8sclient.NewForConfig(cfg)
-
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		fmt.Println("Using OutOfCluster k8s config with kubeConfigFile: ", kubeCfgFile)
-		cfg, err := clientcmd.BuildConfigFromFlags("", kubeCfgFile)
-
-		if err != nil {
-			fmt.Println("Got error trying to create client: ", err)
-			return nil, err
-		}
-
-		client, err = k8sclient.NewForConfig(cfg)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return client, nil
-}
-
-func (c *ClientUtil) GetKafkaClusters() ([]spec.KafkaCluster, error) {
-	methodLogger := logger.WithFields(log.Fields{"method": "GetKafkaClusters"})
-
-	exampleList := spec.KafkaClusterList{}
-	err := c.tprClient.Get().Resource(tprApiName).Do().Into(&exampleList)
-
+	config, err := BuildConfig(kubeCfgFile)
 	if err != nil {
-		fmt.Println("Error while getting resonse from API: ", err)
-		methodLogger.WithFields(log.Fields{
-			"response": exampleList,
-			"error":    err,
-		}).Error("Error response from API")
 		return nil, err
 	}
-	methodLogger.WithFields(log.Fields{
-		"response": exampleList,
-	}).Info("KafkaCluster received")
 
-	return exampleList.Items, nil
-}
-
-/// Create a the thirdparty ressource inside the Kubernetws Cluster
-func (c *ClientUtil) CreateKubernetesThirdPartyResource() error {
-	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource"})
-	tpr, err := c.KubernetesClient.ExtensionsV1beta1Client.ThirdPartyResources().Get(tprFullName, c.DefaultOption)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			methodLogger.WithFields(log.Fields{}).Info("No existing KafkaCluster TPR found, creating")
-
-			tpr := &v1beta1.ThirdPartyResource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: tprFullName,
-				},
-				Versions: []v1beta1.APIVersion{
-					{Name: tprVersion},
-				},
-				Description: "Managed Apache Kafka clusters",
-			}
-			retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
-			if err != nil {
-				methodLogger.WithFields(log.Fields{"response": err}).Error("Error creating ThirdPartyRessources")
-				panic(err)
-			}
-			methodLogger.WithFields(log.Fields{"response": retVal}).Debug("Created KafkaCluster TPR")
-		}
-	} else {
-		methodLogger.Info("KafkaCluster TPR already exist", tpr)
-	}
-	return nil
-}
-
-func Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
-	methodLogger := logger.WithFields(log.Fields{"method": "Watch"})
-
-	stop := make(chan struct{}, 1)
-	source := cache.NewListWatchFromClient(
-		client,
-		tprApiName,
-		v1.NamespaceAll,
-		fields.Everything())
-
-	store, controller := cache.NewInformer(
-		source,
-
-		&spec.KafkaCluster{},
-
-		// resyncPeriod
-		// Every resyncPeriod, all resources in the cache will retrigger events.
-		// Set to 0 to disable the resync.
-		0,
-
-		// Your custom resource event handlers.
-		cache.ResourceEventHandlerFuncs{
-			// Takes a single argument of type interface{}.
-			// Called on controller startup and when new resources are created.
-			AddFunc: func(obj interface{}) {
-				cluster := obj.(*spec.KafkaCluster)
-				methodLogger.WithFields(log.Fields{"watchFunction": "ADDED"}).Info(spec.PrintCluster(cluster))
-				var event spec.KafkaClusterWatchEvent
-				//TODO
-				event.Type = "ADDED"
-				event.Object = *cluster
-				fmt.Println(event)
-				eventsChannel <- event
-			},
-
-			// Takes two arguments of type interface{}.
-			// Called on resource update and every resyncPeriod on existing resources.
-			UpdateFunc: func(old, new interface{}) {
-				oldCluster := old.(*spec.KafkaCluster)
-				newCluster := new.(*spec.KafkaCluster)
-				fmt.Printf("UPDATED:\n  old: %s\n  new: %s\n", spec.PrintCluster(oldCluster), spec.PrintCluster(newCluster))
-				var event spec.KafkaClusterWatchEvent
-				//TODO refactor this.
-				event.Type = "UPDATED"
-				event.Object = *newCluster
-				fmt.Println(event)
-				eventsChannel <- event
-			},
-
-			// Takes a single argument of type interface{}.
-			// Called on resource deletion.
-			DeleteFunc: func(obj interface{}) {
-				cluster := obj.(*spec.KafkaCluster)
-				fmt.Println("delete", spec.PrintCluster(cluster))
-				var event spec.KafkaClusterWatchEvent
-				event.Type = "DELETED"
-				event.Object = *cluster
-				eventsChannel <- event
-			},
-		})
-
-	// store can be used to List and Get
-	// NEVER modify objects from the store. It's a read-only, local cache.
-	//	fmt.Println("listing examples from store:")
-	//	for _, obj := range store.List() {
-	//		example := obj.(*spec.KafkaCluster)
-	//
-	//		// This will likely be empty the first run, but may not
-	//		fmt.Printf("%#v\n", example)
-	//	}
-
-	// the controller run starts the event processing loop
-	go controller.Run(stop)
-	fmt.Println(store)
-
-	go func() {
-		select {
-		case <-signalChannel:
-			fmt.Printf("received signal %#v, exiting...\n")
-			close(stop)
-		}
-	}()
-
-}
-
-func (c *ClientUtil) MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
-	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents"})
-	methodLogger.Info("Starting Watch")
-	Watch(c.tprClient, eventsChannel, signalChannel)
+	//TODO refactor & log errors
+	return k8sclient.NewForConfig(config)
 }
 
 func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {

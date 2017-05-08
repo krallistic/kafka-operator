@@ -2,11 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"github.com/krallistic/kafka-operator/util"
 	"os/signal"
 
-	"github.com/krallistic/kafka-operator/processor"
 	"os"
 	"syscall"
 
@@ -14,6 +11,11 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/krallistic/kafka-operator/util"
+	"github.com/krallistic/kafka-operator/processor"
+
+	"github.com/krallistic/kafka-operator/controller"
 )
 
 var (
@@ -67,13 +69,21 @@ func Main() int {
 		return 1
 	}
 
-	fmt.Println(k8sclient)
+	tprClient, err := controller.New(kubeConfigFile, masterHost)
+	if err != nil {
+		logger.WithFields(log.Fields{
+			"error":      err,
+			"configFile": kubeConfigFile,
+			"masterHost": masterHost,
+		}).Fatal("Error initilizing ThirdPartyRessource (KafkaClusters) client ")
+		return 1
+	}
 
-	k8sclient.CreateKubernetesThirdPartyResource()
+	tprClient.CreateKubernetesThirdPartyResource()
 	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
 
-	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, controlChannel)
-	processor.WatchKafkaEvents()
+	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *tprClient, controlChannel)
+	processor.Run()
 
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)
