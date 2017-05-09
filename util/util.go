@@ -293,6 +293,25 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 					},
 				},
 				Spec: v1.PodSpec{
+					Affinity: &v1.Affinity{
+						PodAntiAffinity: &v1.PodAntiAffinity{
+							PreferredDuringSchedulingIgnoredDuringExecution: []v1.WeightedPodAffinityTerm{
+								v1.WeightedPodAffinityTerm{
+									Weight: 50, //TODO flexible weihgt? anti affinity with zK?
+									PodAffinityTerm: v1.PodAffinityTerm{
+										Namespaces: []string{cluster.Metadata.Namespace,},
+										LabelSelector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{
+												"creator": "kafkaOperator",
+												"name":      name,
+											},
+										},
+										TopologyKey: "kubernetes.io/hostname", //TODO topologieKey defined somehwere in k8s?
+									},
+								},
+							},
+						},
+					},
 					Tolerations: []v1.Toleration{
 						v1.Toleration{
 							Key: "node.alpha.kubernetes.io/unreachable",
