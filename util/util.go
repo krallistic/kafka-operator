@@ -156,6 +156,36 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 	return nil
 }
 
+//TODO check if client already has function
+func (c *ClientUtil) CheckIfAnyEndpointIsReady(serviceName string, namespace string)  bool{
+	endpoints, err := c.KubernetesClient.Endpoints(namespace).Get(serviceName, c.DefaultOption)
+	if err != nil {
+		return false
+	}
+	for _, subset := range endpoints.Subsets{
+		if len(subset.Addresses) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ClientUtil) GetReadyEndpoints(serviceName string, namespace string) []string {
+	endpoints, err := c.KubernetesClient.Endpoints(namespace).Get(serviceName, c.DefaultOption)
+	if err != nil {
+		//TODO error handling
+		return make([]string, 0)
+	}
+	//TODO multiple subsets?
+	for _, subset := range endpoints.Subsets{
+		retVal := make([]string, len(subset.Addresses))
+		for i, address := range subset.Addresses {
+			retVal[i] = address.IP
+		}
+	}
+	return make([]string, 0)
+}
+
 //TODO refactor, into headless svc and direct svc
 func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless bool) error {
 	//Check if already exists?
