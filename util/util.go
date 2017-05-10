@@ -24,8 +24,6 @@ import (
 )
 
 const (
-
-
 	tprName     = "kafka.operator.com"
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
 	defaultCPU  = "1"
@@ -33,7 +31,7 @@ const (
 )
 
 var (
-	logger        = log.WithFields(log.Fields{
+	logger = log.WithFields(log.Fields{
 		"package": "util",
 	})
 )
@@ -49,11 +47,16 @@ func EnrichSpecWithLogger(logger *log.Entry, cluster spec.KafkaCluster) *log.Ent
 }
 
 func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
+	methodLogger := logger.WithFields(log.Fields{"method": "New"})
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	client, err := NewKubeClient(kubeConfigFile)
 	if err != nil {
-		fmt.Println("Error, could not Init Kubernetes Client")
+		methodLogger.WithFields(log.Fields{
+			"error" : err,
+			"config" : kubeConfigFile,
+			"client" : client,
+		}).Error("could not init Kubernetes client")
 		return nil, err
 	}
 
@@ -61,7 +64,10 @@ func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
 		KubernetesClient: client,
 		MasterHost:       masterHost,
 	}
-	fmt.Println("Initilized k8s CLient")
+	methodLogger.WithFields(log.Fields{
+		"config" : kubeConfigFile,
+		"client" : client,
+	}).Debug("Initilized kubernetes cLient")
 
 	return k, nil
 }
@@ -72,8 +78,6 @@ func BuildConfig(kubeconfig string) (*rest.Config, error) {
 	}
 	return rest.InClusterConfig()
 }
-
-
 
 //TODO refactor for config *rest.Config :)
 func NewKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
@@ -299,11 +303,11 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 								v1.WeightedPodAffinityTerm{
 									Weight: 50, //TODO flexible weihgt? anti affinity with zK?
 									PodAffinityTerm: v1.PodAffinityTerm{
-										Namespaces: []string{cluster.Metadata.Namespace,},
+										Namespaces: []string{cluster.Metadata.Namespace},
 										LabelSelector: &metav1.LabelSelector{
 											MatchLabels: map[string]string{
 												"creator": "kafkaOperator",
-												"name":      name,
+												"name":    name,
 											},
 										},
 										TopologyKey: "kubernetes.io/hostname", //TODO topologieKey defined somehwere in k8s?
@@ -314,15 +318,15 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 					},
 					Tolerations: []v1.Toleration{
 						v1.Toleration{
-							Key: "node.alpha.kubernetes.io/unreachable",
-							Operator: v1.TolerationOpExists,
-							Effect:v1.TaintEffectNoExecute,
+							Key:               "node.alpha.kubernetes.io/unreachable",
+							Operator:          v1.TolerationOpExists,
+							Effect:            v1.TaintEffectNoExecute,
 							TolerationSeconds: &cluster.Spec.MinimumGracePeriod,
 						},
 						v1.Toleration{
-							Key: "node.alpha.kubernetes.io/notReady",
-							Operator: v1.TolerationOpExists,
-							Effect:v1.TaintEffectNoExecute,
+							Key:               "node.alpha.kubernetes.io/notReady",
+							Operator:          v1.TolerationOpExists,
+							Effect:            v1.TaintEffectNoExecute,
 							TolerationSeconds: &cluster.Spec.MinimumGracePeriod,
 						},
 					},

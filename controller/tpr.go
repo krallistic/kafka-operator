@@ -1,11 +1,8 @@
 package controller
 
-import
-(
-	"fmt"
-	"github.com/krallistic/kafka-operator/util"
+import (
 	"github.com/krallistic/kafka-operator/spec"
-
+	"github.com/krallistic/kafka-operator/util"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -26,11 +23,10 @@ import
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-
 )
 
 var (
-	logger        = log.WithFields(log.Fields{
+	logger = log.WithFields(log.Fields{
 		"package": "controller/tpr",
 	})
 )
@@ -44,7 +40,6 @@ const (
 	tprVersion = "v1"
 )
 
-
 type ThirdPartyResourceController struct {
 	KubernetesClient *k8sclient.Clientset
 	DefaultOption    metav1.GetOptions
@@ -52,26 +47,38 @@ type ThirdPartyResourceController struct {
 }
 
 func New(kubeConfigFile, masterHost string) (*ThirdPartyResourceController, error) {
+	methodLogger := logger.WithFields(log.Fields{"method": "New"})
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := util.BuildConfig(kubeConfigFile)
 
-	client, err := util.NewKubeClient(kubeConfigFile)
+
+	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
+	client, err := k8sclient.NewForConfig(config)
 	if err != nil {
-		fmt.Println("Error, could not Init Kubernetes Client")
+		methodLogger.WithFields(log.Fields{
+			"error" : err,
+			"config" : config,
+			"client" : client,
+		}).Error("could not init Kubernetes client")
 		return nil, err
 	}
+
 	tprClient, err := newTPRClient(config)
 	if err != nil {
-		fmt.Println("Error, could not Init KafkaCluster TPR Client")
+		methodLogger.WithFields(log.Fields{
+			"Error" : err,
+			"Client": tprClient,
+			"Config": config,
+		}).Error("Could not initialize ThirdPartyRessource KafkaCluster cLient")
 		return nil, err
 	}
 
 	k := &ThirdPartyResourceController{
-		KubernetesClient: client,
 		tprClient:        tprClient,
+		KubernetesClient: client,
 	}
-	fmt.Println("Initilized k8s CLient")
+	methodLogger.Info("Initilized ThirdPartyRessource KafkaCluster cLient")
 
 	return k, nil
 }
@@ -96,10 +103,7 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 		// Set to 0 to disable the resync.
 		0,
 
-		// Your custom resource event handlers.
 		cache.ResourceEventHandlerFuncs{
-			// Takes a single argument of type interface{}.
-			// Called on controller startup and when new resources are created.
 			AddFunc: func(obj interface{}) {
 				cluster := obj.(*spec.KafkaCluster)
 				methodLogger.WithFields(log.Fields{"watchFunction": "ADDED"}).Info(spec.PrintCluster(cluster))
@@ -107,29 +111,26 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 				//TODO
 				event.Type = "ADDED"
 				event.Object = *cluster
-				fmt.Println(event)
 				eventsChannel <- event
 			},
 
-			// Takes two arguments of type interface{}.
-			// Called on resource update and every resyncPeriod on existing resources.
 			UpdateFunc: func(old, new interface{}) {
 				oldCluster := old.(*spec.KafkaCluster)
 				newCluster := new.(*spec.KafkaCluster)
-				fmt.Printf("UPDATED:\n  old: %s\n  new: %s\n", spec.PrintCluster(oldCluster), spec.PrintCluster(newCluster))
+				methodLogger.WithFields(log.Fields{
+					"eventType" : "UPDATED",
+					"old": spec.PrintCluster(oldCluster),
+					"new": spec.PrintCluster(newCluster),
+				}).Debug("Recieved Update Event")
 				var event spec.KafkaClusterWatchEvent
-				//TODO refactor this.
+				//TODO refactor this. use old/new in EventChannel
 				event.Type = "UPDATED"
 				event.Object = *newCluster
-				fmt.Println(event)
 				eventsChannel <- event
 			},
 
-			// Takes a single argument of type interface{}.
-			// Called on resource deletion.
 			DeleteFunc: func(obj interface{}) {
 				cluster := obj.(*spec.KafkaCluster)
-				fmt.Println("delete", spec.PrintCluster(cluster))
 				var event spec.KafkaClusterWatchEvent
 				event.Type = "DELETED"
 				event.Object = *cluster
@@ -137,24 +138,14 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 			},
 		})
 
-	// store can be used to List and Get
-	// NEVER modify objects from the store. It's a read-only, local cache.
-	//	fmt.Println("listing examples from store:")
-	//	for _, obj := range store.List() {
-	//		example := obj.(*spec.KafkaCluster)
-	//
-	//		// This will likely be empty the first run, but may not
-	//		fmt.Printf("%#v\n", example)
-	//	}
-
 	// the controller run starts the event processing loop
 	go controller.Run(stop)
-	fmt.Println(store)
+	methodLogger.Info(store)
 
 	go func() {
 		select {
 		case <-signalChannel:
-			fmt.Printf("received signal %#v, exiting...\n")
+			methodLogger.Warn("recieved shutdown signal, stopping informer")
 			close(stop)
 		}
 	}()
@@ -196,28 +187,15 @@ func newTPRClient(config *rest.Config) (*rest.RESTClient, error) {
 	tprconfig = config
 	configureClient(tprconfig)
 
-	fmt.Println(tprconfig)
-
 	tprclient, err := rest.RESTClientFor(tprconfig)
 	if err != nil {
 		panic(err)
 	}
 
-	// Fetch a list of our TPRs
-	exampleList := spec.KafkaClusterList{}
-
-	err = tprclient.Get().Resource(tprApiName).Do().Into(&exampleList)
-	fmt.Printf("LIST: %#v\n", exampleList, err)
-	if err != nil {
-		logger.Warn("Error: ", err)
-	}
-	fmt.Printf("LIST: %#v\n", exampleList)
-	//panic("exit")
-
 	return tprclient, nil
 }
 
-/// Create a the thirdparty ressource inside the Kubernetws Cluster
+/// Create a the thirdparty ressource inside the Kubernetes Cluster
 func (c *ThirdPartyResourceController) CreateKubernetesThirdPartyResource() error {
 	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource"})
 	tpr, err := c.KubernetesClient.ExtensionsV1beta1Client.ThirdPartyResources().Get(tprFullName, c.DefaultOption)
@@ -236,13 +214,13 @@ func (c *ThirdPartyResourceController) CreateKubernetesThirdPartyResource() erro
 			}
 			retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
 			if err != nil {
-				methodLogger.WithFields(log.Fields{"response": err}).Error("Error creating ThirdPartyRessources")
+				methodLogger.WithFields(log.Fields{"response": err}).Error("Error creating ThirdPartyRessource KafkaCluster")
 				panic(err)
 			}
-			methodLogger.WithFields(log.Fields{"response": retVal}).Debug("Created KafkaCluster TPR")
+			methodLogger.WithFields(log.Fields{"response": retVal}).Info("Created KafkaCluster TPR")
 		}
 	} else {
-		methodLogger.Info("KafkaCluster TPR already exist", tpr)
+		methodLogger.Info("ThirdPartyRessource KafkaCluster already exist", tpr)
 	}
 	return nil
 }
@@ -254,7 +232,6 @@ func (c *ThirdPartyResourceController) GetKafkaClusters() ([]spec.KafkaCluster, 
 	err := c.tprClient.Get().Resource(tprApiName).Do().Into(&exampleList)
 
 	if err != nil {
-		fmt.Println("Error while getting resonse from API: ", err)
 		methodLogger.WithFields(log.Fields{
 			"response": exampleList,
 			"error":    err,

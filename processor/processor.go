@@ -2,19 +2,19 @@ package processor
 
 import (
 	"fmt"
+	"github.com/krallistic/kafka-operator/controller"
 	"github.com/krallistic/kafka-operator/kafka"
 	spec "github.com/krallistic/kafka-operator/spec"
 	"github.com/krallistic/kafka-operator/util"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"time"
-	"github.com/krallistic/kafka-operator/controller"
 )
 
 type Processor struct {
 	client          k8sclient.Clientset
 	baseBrokerImage string
 	util            util.ClientUtil
-	tprController 	controller.ThirdPartyResourceController
+	tprController   controller.ThirdPartyResourceController
 	kafkaClusters   map[string]*spec.KafkaCluster
 	watchEvents     chan spec.KafkaClusterWatchEvent
 	clusterEvents   chan spec.KafkaClusterEvent
@@ -31,10 +31,10 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClie
 		kafkaClusters:   make(map[string]*spec.KafkaCluster),
 		watchEvents:     make(chan spec.KafkaClusterWatchEvent, 100),
 		clusterEvents:   make(chan spec.KafkaClusterEvent, 100),
-		tprController: tprClient,
+		tprController:   tprClient,
 		control:         control,
 
-		errors:          make(chan error),
+		errors: make(chan error),
 	}
 	fmt.Println("Created Processor")
 	return p, nil

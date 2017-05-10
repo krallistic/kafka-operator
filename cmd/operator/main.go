@@ -12,8 +12,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/krallistic/kafka-operator/util"
 	"github.com/krallistic/kafka-operator/processor"
+	"github.com/krallistic/kafka-operator/util"
 
 	"github.com/krallistic/kafka-operator/controller"
 )
