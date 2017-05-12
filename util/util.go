@@ -364,6 +364,14 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 						v1.Container{
 							Name:  "labeler",
 							Image: "devth/k8s-labeler", //TODO fullName, config
+							Command: []string{"/bin/bash",
+									  "-c",
+								fmt.Sprintf(
+									"set -ex\n"+
+									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n"+
+									"export KUBE_LABEL_kafka_broker_id=${BASH_REMATCH[1]}\n"+
+									"/run.sh"),
+							},
 							Env: []v1.EnvVar{
 								v1.EnvVar{
 									Name: "KUBE_NAMESPACE",
@@ -380,6 +388,10 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 											FieldPath: "metadata.name",
 										},
 									},
+								},
+								v1.EnvVar{
+									Name: "KUBE_LABEL_kafka_broker_id",
+									Value: "thisshouldbeoverwritten",
 								},
 							},
 						},
