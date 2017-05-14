@@ -21,6 +21,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	//	"k8s.io/client-go/tools/cache"
+
+	"strconv"
 )
 
 const (
@@ -285,6 +287,22 @@ func (c *ClientUtil) BrokerStSDownsize(cluster spec.KafkaCluster) bool {
 	return *statefulSet.Spec.Replicas > cluster.Spec.BrokerCount
 }
 
+func GetBrokerAdressess(cluster spec.KafkaCluster) []string {
+	brokers := make([]string, cluster.Spec.BrokerCount)
+	fmt.Println(cluster.Spec.BrokerCount)
+	//TODO make governing domain config
+	dnsSuffix := cluster.Metadata.Name + "." + cluster.Metadata.Namespace + ".svc.cluster.local"
+	port := "9092"
+	for i := 0; i < int(cluster.Spec.BrokerCount); i++ {
+		hostName := cluster.Metadata.Name + "-" + strconv.Itoa(i)
+		brokers[i] = hostName + "." + dnsSuffix + ":" + port
+		fmt.Println(brokers[i])
+		fmt.Println(i)
+	}
+	fmt.Println(brokers)
+	return brokers
+}
+
 func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.StatefulSet {
 	methodLogger := logger.WithFields(log.Fields{"method": "createStsFromSpec"})
 	methodLogger = EnrichSpecWithLogger(methodLogger, cluster)
@@ -434,6 +452,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
 									Name:          "kafka",
+									//TODO configPort
 									ContainerPort: 9092,
 								},
 							},

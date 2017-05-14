@@ -8,6 +8,7 @@ import (
 	"github.com/krallistic/kafka-operator/util"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"time"
+	log "github.com/Sirupsen/logrus"
 )
 
 type Processor struct {
@@ -18,7 +19,7 @@ type Processor struct {
 	kafkaClusters   map[string]*spec.KafkaCluster
 	watchEvents     chan spec.KafkaClusterWatchEvent
 	clusterEvents   chan spec.KafkaClusterEvent
-	kafkaClient     kafka.KafkaUtil //TODO we should have different utils for different clusters
+	kafkaClient     map[string]*kafka.KafkaUtil
 	control         chan int
 	errors          chan error
 }
@@ -32,8 +33,8 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClie
 		watchEvents:     make(chan spec.KafkaClusterWatchEvent, 100),
 		clusterEvents:   make(chan spec.KafkaClusterEvent, 100),
 		tprController:   tprClient,
+		kafkaClient:	 make(map[string]*kafka.KafkaUtil),
 		control:         control,
-
 		errors: make(chan error),
 	}
 	fmt.Println("Created Processor")
@@ -88,6 +89,32 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 
 	clusterEvent.Type = spec.UNKNOWN_CHANGE
 	return clusterEvent
+}
+
+
+func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error{
+	methodLogger := log.WithFields(log.Fields{
+		"method" : "initKafkaClient",
+		"clusterName": cluster.Metadata.Name,
+		"zookeeperConnectL": cluster.Spec.ZookeeperConnect,
+
+	})
+	methodLogger.Info("Creating KafkaCLient for cluster")
+
+	//TODO
+	brokerList := util.GetBrokerAdressess(cluster)
+
+	client, err := kafka.New(brokerList, cluster.Metadata.Name)
+	if err != nil {
+		return err
+	}
+
+	//TODO can metadata.uuid used? check how that changed
+	name := cluster.Metadata.Namespace + "-" + cluster.Metadata.Name
+	p.kafkaClient[name] = client
+
+	methodLogger.Info("Create KakfaClient for cluser")
+	return nil
 }
 
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
@@ -165,7 +192,8 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			time.Sleep(30 * time.Second)
 			p.clusterEvents <- currentEvent
 		}()
-		//p.kafkaClient.ListTopics()
+		name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
+		p.kafkaClient[name].PrintFullStats()
 
 	}
 }
@@ -200,6 +228,8 @@ func (p *Processor) watchKafkaEvents() {
 func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	fmt.Println("CreatingKafkaCluster", clusterSpec)
 	fmt.Println("SPEC: ", clusterSpec.Spec)
+
+	p.initKafkaClient(clusterSpec)
 
 	suffix := ".cluster.local:9092"
 	brokerNames := make([]string, clusterSpec.Spec.BrokerCount)

@@ -4,7 +4,15 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/krallistic/kafka-operator/spec"
+	log "github.com/Sirupsen/logrus"
 )
+
+var (
+	logger = log.WithFields(log.Fields{
+		"package": "kafka",
+	})
+)
+
 
 type KafkaUtil struct {
 	KafkaClient sarama.Client
@@ -13,13 +21,21 @@ type KafkaUtil struct {
 }
 
 func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
+	methodLogger := log.WithFields(log.Fields{
+		"method" : "new",
+		"clusterName": clusterName,
+		"brokers": brokerList,
+	})
 	config := sarama.NewConfig()
 
-	fmt.Println("Creating KafkaUtil for cluster with Brokers: ", clusterName, brokerList)
+	methodLogger.Info("Creating KafkaUtil")
 
 	client, err := sarama.NewClient(brokerList, config)
 	if err != nil {
-		fmt.Println("Error creating Kafka Client: ", err)
+		methodLogger.WithFields(log.Fields{
+			"error": err,
+		}).Error("Error creating sarama kafka Client")
+		return nil ,err
 	}
 
 	k := &KafkaUtil{
@@ -28,7 +44,8 @@ func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
 		BrokerList:  brokerList,
 	}
 
-	fmt.Println("Initilized Kafka CLient")
+	methodLogger.Info("Initilized Kafka CLient and created KafkaUtil")
+	k.ListTopics()
 	return k, nil
 }
 
@@ -43,6 +60,30 @@ func (k *KafkaUtil) ListTopics() ([]string, error) {
 		fmt.Println("Current topic:", t)
 	}
 	return topics, nil
+}
+
+func (k *KafkaUtil) GetPartitions(topic string) ([]int32, error) {
+	partitions, err := k.KafkaClient.Partitions(topic)
+	if err != nil {
+		return nil ,err
+	}
+	return partitions, nil
+}
+
+func (k *KafkaUtil) PrintFullStats() error {
+	topics, err := k.ListTopics()
+	if err != nil {
+		return err
+	}
+	for _, topic := range topics {
+		partitions,  err  := k.GetPartitions(topic)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Topic: %s, Partitions %s", topic, partitions)
+	}
+
+	return nil
 }
 
 func (k *KafkaUtil) CreateTopic(topicSpec spec.KafkaTopicSpec) error {

@@ -80,6 +80,7 @@ func Main() int {
 	}
 
 	tprClient.CreateKubernetesThirdPartyResource()
+	//TODO wait till TPR really exist
 	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
 
 	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *tprClient, controlChannel)
