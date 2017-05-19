@@ -2,13 +2,13 @@ package processor
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/krallistic/kafka-operator/controller"
 	"github.com/krallistic/kafka-operator/kafka"
 	spec "github.com/krallistic/kafka-operator/spec"
 	"github.com/krallistic/kafka-operator/util"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"time"
-	log "github.com/Sirupsen/logrus"
 )
 
 type Processor struct {
@@ -33,9 +33,9 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClie
 		watchEvents:     make(chan spec.KafkaClusterWatchEvent, 100),
 		clusterEvents:   make(chan spec.KafkaClusterEvent, 100),
 		tprController:   tprClient,
-		kafkaClient:	 make(map[string]*kafka.KafkaUtil),
+		kafkaClient:     make(map[string]*kafka.KafkaUtil),
 		control:         control,
-		errors: make(chan error),
+		errors:          make(chan error),
 	}
 	fmt.Println("Created Processor")
 	return p, nil
@@ -91,13 +91,11 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 	return clusterEvent
 }
 
-
-func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error{
+func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 	methodLogger := log.WithFields(log.Fields{
-		"method" : "initKafkaClient",
-		"clusterName": cluster.Metadata.Name,
+		"method":            "initKafkaClient",
+		"clusterName":       cluster.Metadata.Name,
 		"zookeeperConnectL": cluster.Spec.ZookeeperConnect,
-
 	})
 	methodLogger.Info("Creating KafkaCLient for cluster")
 
@@ -229,8 +227,6 @@ func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	fmt.Println("CreatingKafkaCluster", clusterSpec)
 	fmt.Println("SPEC: ", clusterSpec.Spec)
 
-	p.initKafkaClient(clusterSpec)
-
 	suffix := ".cluster.local:9092"
 	brokerNames := make([]string, clusterSpec.Spec.BrokerCount)
 
@@ -253,5 +249,9 @@ func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	//CREATE Broker sts
 	//Currently we extract name out of spec, maybe move to metadata to be more inline with other k8s komponents.
 	p.util.CreateBrokerStatefulSet(clusterSpec)
+
+	p.util.CreateDirectBrokerService(clusterSpec)
+
+	p.initKafkaClient(clusterSpec)
 
 }

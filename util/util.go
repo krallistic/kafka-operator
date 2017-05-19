@@ -23,6 +23,7 @@ import (
 	//	"k8s.io/client-go/tools/cache"
 
 	"strconv"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -55,9 +56,9 @@ func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
 	client, err := NewKubeClient(kubeConfigFile)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
-			"error" : err,
-			"config" : kubeConfigFile,
-			"client" : client,
+			"error":  err,
+			"config": kubeConfigFile,
+			"client": client,
 		}).Error("could not init Kubernetes client")
 		return nil, err
 	}
@@ -67,8 +68,8 @@ func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
 		MasterHost:       masterHost,
 	}
 	methodLogger.WithFields(log.Fields{
-		"config" : kubeConfigFile,
-		"client" : client,
+		"config": kubeConfigFile,
+		"client": client,
 	}).Debug("Initilized kubernetes cLient")
 
 	return k, nil
@@ -101,40 +102,55 @@ func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
 }
 
 func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error {
+	methodLogger := logger.WithFields(log.Fields{
+		"method": "CreateDirectBrokerService",
+		"name": cluster.Metadata.Name,
+		"namespace": cluster.Metadata.Namespace,
+		"brokerCount": cluster.Spec.BrokerCount,
+	})
 
 	brokerCount := cluster.Spec.BrokerCount
-	fmt.Println("Creating N direkt broker SVCs, ", brokerCount)
+	methodLogger.Info("Creating direkt broker SVCs")
 
-	for i := 0; i < 3; i++ {
-		//TODO name dependend on cluster metadata
-		name := "broker-" + string(i)
-		fmt.Println("Creating Direct Broker SVC: ", i, name)
-		svc, err := c.KubernetesClient.Services(cluster.Metadata.Namespace).Get(name, c.DefaultOption)
+	for i := 0; i < int(brokerCount); i++ {
+		service_name := cluster.Metadata.Name + "-broker-" + strconv.Itoa(i)
+		cluster_name := cluster.Metadata.Name
+
+		methodLogger.WithFields(log.Fields{
+			"id": i,
+			"service_name": service_name,
+		}).Info("Creating Direct Broker SVC: ")
+
+		svc, err := c.KubernetesClient.Services(cluster.Metadata.Namespace).Get(service_name, c.DefaultOption)
 		if err != nil {
-			return err
+			if !errors.IsNotFound(err) {
+				methodLogger.WithFields(log.Fields{
+					"error": err,
+				}).Error("Cant get Service INFO from API")
+				return err
+			}
 		}
 		if len(svc.Name) == 0 {
 			//Service dosnt exist, creating
-
-			//TODO refactor creation ob object meta out,
 			objectMeta := metav1.ObjectMeta{
-				Name: name,
+				Name: service_name,
+				Namespace: cluster.Metadata.Namespace,
 				Annotations: map[string]string{
 					"component": "kafka",
-					"name":      name,
+					"name":      cluster_name,
 					"role":      "data",
 					"type":      "service",
 				},
 			}
 			service := &v1.Service{
 				ObjectMeta: objectMeta,
-				//TODO label selector
 				Spec: v1.ServiceSpec{
 					Selector: map[string]string{
 						"component": "kafka",
 						"creator":   "kafkaOperator",
 						"role":      "data",
-						"name":      name,
+						"name":      cluster_name,
+						"kafka_broker_id": strconv.Itoa(i),
 					},
 					Ports: []v1.ServicePort{
 						v1.ServicePort{
@@ -146,25 +162,25 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 			}
 			_, err := c.KubernetesClient.Services(cluster.Metadata.Namespace).Create(service)
 			if err != nil {
-				fmt.Println("Error while creating direct service: ", err)
+				methodLogger.WithFields(log.Fields{
+					"error": err,
+					"service_name": service_name,
+				}).Error("Error while creating direct broker service")
 				return err
 			}
 			fmt.Println(service)
-
 		}
-
 	}
-
 	return nil
 }
 
 //TODO check if client already has function
-func (c *ClientUtil) CheckIfAnyEndpointIsReady(serviceName string, namespace string)  bool{
+func (c *ClientUtil) CheckIfAnyEndpointIsReady(serviceName string, namespace string) bool {
 	endpoints, err := c.KubernetesClient.Endpoints(namespace).Get(serviceName, c.DefaultOption)
 	if err != nil {
 		return false
 	}
-	for _, subset := range endpoints.Subsets{
+	for _, subset := range endpoints.Subsets {
 		if len(subset.Addresses) > 0 {
 			return true
 		}
@@ -179,7 +195,7 @@ func (c *ClientUtil) GetReadyEndpoints(serviceName string, namespace string) []s
 		return make([]string, 0)
 	}
 	//TODO multiple subsets?
-	for _, subset := range endpoints.Subsets{
+	for _, subset := range endpoints.Subsets {
 		retVal := make([]string, len(subset.Addresses))
 		for i, address := range subset.Addresses {
 			retVal[i] = address.IP
@@ -383,12 +399,12 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							Name:  "labeler",
 							Image: "devth/k8s-labeler", //TODO fullName, config
 							Command: []string{"/bin/bash",
-									  "-c",
+								"-c",
 								fmt.Sprintf(
-									"set -ex\n"+
-									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n"+
-									"export KUBE_LABEL_kafka_broker_id=${BASH_REMATCH[1]}\n"+
-									"/run.sh"),
+									"set -ex\n" +
+										"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n" +
+										"export KUBE_LABEL_kafka_broker_id=${BASH_REMATCH[1]}\n" +
+										"/run.sh"),
 							},
 							Env: []v1.EnvVar{
 								v1.EnvVar{
@@ -408,7 +424,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 									},
 								},
 								v1.EnvVar{
-									Name: "KUBE_LABEL_kafka_broker_id",
+									Name:  "KUBE_LABEL_kafka_broker_id",
 									Value: "thisshouldbeoverwritten",
 								},
 							},
@@ -451,7 +467,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							},
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
-									Name:          "kafka",
+									Name: "kafka",
 									//TODO configPort
 									ContainerPort: 9092,
 								},
