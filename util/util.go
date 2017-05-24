@@ -31,6 +31,7 @@ const (
 	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
 	defaultCPU  = "1"
 	defaultDisk = "100G"
+	stateAnnotation = "kafka-cluster.incubator/state"
 )
 
 var (
@@ -113,7 +114,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 	methodLogger.Info("Creating direkt broker SVCs")
 
 	for i := 0; i < int(brokerCount); i++ {
-		service_name := cluster.Metadata.Name + "-broker-" + strconv.Itoa(i)
+		service_name := "broker-" + strconv.Itoa(i)
 		cluster_name := cluster.Metadata.Name
 
 		methodLogger.WithFields(log.Fields{
@@ -145,6 +146,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 			service := &v1.Service{
 				ObjectMeta: objectMeta,
 				Spec: v1.ServiceSpec{
+					Type: v1.ServiceTypeNodePort,
 					Selector: map[string]string{
 						"component": "kafka",
 						"creator":   "kafkaOperator",
@@ -156,6 +158,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 						v1.ServicePort{
 							Name: "broker",
 							Port: 9092,
+							NodePort: 30092,
 						},
 					},
 				},
@@ -168,7 +171,10 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 				}).Error("Error while creating direct broker service")
 				return err
 			}
-			fmt.Println(service)
+			methodLogger.WithFields(log.Fields{
+				"service": service,
+				"service_name": service_name,
+			}).Debug("Created direct Access Service")
 		}
 	}
 	return nil
@@ -202,6 +208,61 @@ func (c *ClientUtil) GetReadyEndpoints(serviceName string, namespace string) []s
 		}
 	}
 	return make([]string, 0)
+}
+
+func (c *ClientUtil) GetPodAnnotations(cluster spec.KafkaCluster) error {
+	pods, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).List(metav1.ListOptions{
+		LabelSelector: "creator=kafkaOperator,name="+cluster.Metadata.Name,
+	})
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	for _, pod := range pods.Items {
+		fmt.Println("Pod:")
+		fmt.Println(pod.Annotations[stateAnnotation])
+	}
+
+	return nil
+}
+
+func (c *ClientUtil) GetBrokerStates(cluster spec.KafkaCluster) ([]string, error) {
+
+
+	states := make([]string, cluster.Spec.BrokerCount)
+	pods, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).List(metav1.ListOptions{
+		LabelSelector: "creator=kafkaOperator,name="+cluster.Metadata.Name,
+	})
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	for i, pod := range pods.Items {
+		if val, ok := pod.Annotations[stateAnnotation]; ok {
+			fmt.Println(val)
+			states[i] = val
+		} else {
+			return nil, err
+		}
+	}
+
+	return states, nil
+}
+
+func (c *ClientUtil) SetBrokerState(cluster spec.KafkaCluster, brokerId int32, state string) error {
+
+	pod, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).Get(cluster.Metadata.Name + "-" + strconv.Itoa(int(brokerId)),c.DefaultOption)
+	if err != nil {
+		return err
+	}
+	pod.Annotations[stateAnnotation] = state
+
+	_, err = c.KubernetesClient.Pods(cluster.Metadata.Namespace).Update(pod)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //TODO refactor, into headless svc and direct svc
