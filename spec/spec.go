@@ -74,6 +74,17 @@ type KafkaOption struct {
 	CompressionType   string `json:compressionType`
 }
 
+type KafkaReassignmentConfig struct {
+	Partition []KafkaPartition `json:"partition"`
+	Version string `json:"version"`
+}
+
+type KafkaPartition struct {
+	Topic string `json:"topic"`
+	Partition int `json:"partition"`
+	Replicas []int `json:"replicas"`
+}
+
 //No json needed since internal Event type.
 type KafkaClusterEvent struct {
 	Type    KafkaEventType
