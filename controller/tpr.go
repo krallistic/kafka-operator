@@ -52,14 +52,13 @@ func New(kubeConfigFile, masterHost string) (*ThirdPartyResourceController, erro
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := util.BuildConfig(kubeConfigFile)
 
-
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	client, err := k8sclient.NewForConfig(config)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
-			"error" : err,
-			"config" : config,
-			"client" : client,
+			"error":  err,
+			"config": config,
+			"client": client,
 		}).Error("could not init Kubernetes client")
 		return nil, err
 	}
@@ -67,7 +66,7 @@ func New(kubeConfigFile, masterHost string) (*ThirdPartyResourceController, erro
 	tprClient, err := newTPRClient(config)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
-			"Error" : err,
+			"Error":  err,
 			"Client": tprClient,
 			"Config": config,
 		}).Error("Could not initialize ThirdPartyRessource KafkaCluster cLient")
@@ -118,9 +117,9 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 				oldCluster := old.(*spec.KafkaCluster)
 				newCluster := new.(*spec.KafkaCluster)
 				methodLogger.WithFields(log.Fields{
-					"eventType" : "UPDATED",
-					"old": spec.PrintCluster(oldCluster),
-					"new": spec.PrintCluster(newCluster),
+					"eventType": "UPDATED",
+					"old":       spec.PrintCluster(oldCluster),
+					"new":       spec.PrintCluster(newCluster),
 				}).Debug("Recieved Update Event")
 				var event spec.KafkaClusterWatchEvent
 				//TODO refactor this. use old/new in EventChannel
