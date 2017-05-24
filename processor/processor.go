@@ -67,19 +67,18 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 		clusterEvent.Type = spec.DELTE_CLUSTER
 		return clusterEvent
 		//EVENT type must be modfied now
-	} else if p.util.BrokerStatefulSetExist(event.Object) {
-		clusterEvent.Type = spec.UNKNOWN_CHANGE
-		//TODO change to reconsilation event?
-		return clusterEvent
-	} else if p.util.BrokerStSImageUpdate(event.Object) {
+	}  else if p.util.BrokerStSImageUpdate(event.Object) {
 		clusterEvent.Type = spec.CHANGE_IMAGE
 		return clusterEvent
 	} else if p.util.BrokerStSUpsize(event.Object) {
 		clusterEvent.Type = spec.UPSIZE_CLUSTER
 		return clusterEvent
 	} else if p.util.BrokerStSDownsize(event.Object) {
-		fmt.Println("No Downsizing currently supported, TODO without dataloss?")
 		clusterEvent.Type = spec.DOWNSIZE_CLUSTER
+		return clusterEvent
+	} else if p.util.BrokerStatefulSetExist(event.Object) {
+		clusterEvent.Type = spec.UNKNOWN_CHANGE
+		//TODO change to reconsilation event?
 		return clusterEvent
 	}
 
@@ -169,7 +168,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		}
 		clustersModified.Inc()
 	case spec.UPSIZE_CLUSTER:
-		fmt.Println("Upsize Cluster, changing StewtefulSet with higher Replicas, no Rebalacing")
+		fmt.Println("Upsize Cluster, changing StatefulSet with higher Replicas, no Rebalacing")
 		p.util.UpsizeBrokerStS(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
@@ -177,6 +176,12 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersModified.Inc()
 	case spec.DOWNSIZE_CLUSTER:
 		fmt.Println("Downsize Cluster")
+		//TODO remove poor mans casting :P
+		//TODO support Downsizing Multiple Brokers
+		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
+		fmt.Println("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
+		p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, "deleting")
+
 		clustersModified.Inc()
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
 		fmt.Println("Trying to change zookeeper connect, not supported currently")
@@ -185,15 +190,40 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
-		fmt.Println("Kafka Event, checking now that topics exist etc..")
+		fmt.Println("Kafka Event, heartbeat etc..")
 		go func() {
 			time.Sleep(30 * time.Second)
 			p.clusterEvents <- currentEvent
 		}()
-		name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
-		p.kafkaClient[name].PrintFullStats()
+
+		//states := p.util.GetPodAnnotations(currentEvent.Cluster)
+		//name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
+		//p.kafkaClient[name].PrintFullStats()
 
 	}
+}
+
+func (p *Processor) EmptyingBroker(cluster spec.KafkaCluster, states []string) error {
+
+	for i, state := range states {
+		fmt.Println("State, Index: ", state, i)
+		if state == "toDelete" {
+			// EMPTY Broker,
+			// generate Downsize Options
+			// Save downsize option and store in k8s
+		} else if state == "deleting" {
+			//get downsize option from k8s
+			//check if downsize done
+		} else if state == "deleted" {
+			//downsize Broker
+
+		} else {
+			//DO nothing?
+		}
+	}
+
+
+	return nil
 }
 
 //Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
