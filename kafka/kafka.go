@@ -3,8 +3,8 @@ package kafka
 import (
 	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/krallistic/kafka-operator/spec"
 	log "github.com/Sirupsen/logrus"
+	"github.com/krallistic/kafka-operator/spec"
 )
 
 var (
@@ -12,7 +12,6 @@ var (
 		"package": "kafka",
 	})
 )
-
 
 type KafkaUtil struct {
 	KafkaClient sarama.Client
@@ -22,9 +21,9 @@ type KafkaUtil struct {
 
 func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
 	methodLogger := log.WithFields(log.Fields{
-		"method" : "new",
+		"method":      "new",
 		"clusterName": clusterName,
-		"brokers": brokerList,
+		"brokers":     brokerList,
 	})
 	config := sarama.NewConfig()
 
@@ -35,7 +34,7 @@ func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
 		methodLogger.WithFields(log.Fields{
 			"error": err,
 		}).Error("Error creating sarama kafka Client")
-		return nil ,err
+		return nil, err
 	}
 
 	k := &KafkaUtil{
@@ -65,7 +64,7 @@ func (k *KafkaUtil) ListTopics() ([]string, error) {
 func (k *KafkaUtil) GetPartitions(topic string) ([]int32, error) {
 	partitions, err := k.KafkaClient.Partitions(topic)
 	if err != nil {
-		return nil ,err
+		return nil, err
 	}
 	return partitions, nil
 }
@@ -76,7 +75,7 @@ func (k *KafkaUtil) PrintFullStats() error {
 		return err
 	}
 	for _, topic := range topics {
-		partitions,  err  := k.GetPartitions(topic)
+		partitions, err := k.GetPartitions(topic)
 		if err != nil {
 			return err
 		}
@@ -84,6 +83,35 @@ func (k *KafkaUtil) PrintFullStats() error {
 	}
 
 	return nil
+}
+
+func (k *KafkaUtil) GenerateReassign(cluster spec.KafkaCluster, brokerToDelete int) (spec.KafkaReassignmentConfig, error) {
+	methodLogger := log.WithFields(log.Fields{
+		"method":      "GenerateReassign",
+		"clusterName": cluster.Metadata.Name,
+	})
+	topics, err := k.KafkaClient.Topics()
+	if err != nil {
+		methodLogger.Error("Error Listing Topics")
+		return spec.KafkaReassignmentConfig{}, err
+	}
+	for _, topic := range topics {
+		partitions, err := k.KafkaClient.Partitions(topic)
+		if err != nil {
+			methodLogger.Error("Error Listing Partitions")
+			return spec.KafkaReassignmentConfig{}, err
+		}
+		for _, partition := range partitions {
+			partition, err := k.KafkaClient.Replicas(topic, partition)
+			if err != nil {
+				methodLogger.Error("Error listing partitions")
+				return spec.KafkaReassignmentConfig{}, err
+			}
+			fmt.Println(partition)
+		}
+	}
+
+	return spec.KafkaReassignmentConfig{}, nil
 }
 
 func (k *KafkaUtil) CreateTopic(topicSpec spec.KafkaTopicSpec) error {
