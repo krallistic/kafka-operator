@@ -6,6 +6,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/krallistic/kafka-operator/spec"
 	kazoo "github.com/krallistic/kazoo-go"
+	"github.com/krallistic/kafka-operator/util"
 )
 
 var (
@@ -21,10 +22,12 @@ type KafkaUtil struct {
 	KazooClient *kazoo.Kazoo
 }
 
-func New(brokerList []string, clusterName string, zookeeperConnect string) (*KafkaUtil, error) {
+func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
+	brokerList := util.GetBrokerAdressess(clusterSpec)
+
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "new",
-		"clusterName": clusterName,
+		"clusterName": clusterSpec.Metadata.Name,
 		"brokers":     brokerList,
 	})
 	config := sarama.NewConfig()
@@ -39,18 +42,18 @@ func New(brokerList []string, clusterName string, zookeeperConnect string) (*Kaf
 		return nil, err
 	}
 
-	kz, err := kazoo.NewKazooFromConnectionString(zookeeperConnect, nil)
+	kz, err := kazoo.NewKazooFromConnectionString(clusterSpec.Spec.ZookeeperConnect, nil)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
 			"error": err,
-			"zookeeperConnect": zookeeperConnect,
+			"zookeeperConnect": clusterSpec.Spec.ZookeeperConnect,
 		}).Error("Cant create kazoo client")
 		return nil, err
 	}
 
 	k := &KafkaUtil{
 		KafkaClient: client,
-		ClusterName: clusterName,
+		ClusterName: clusterSpec.Metadata.Name,
 		BrokerList:  brokerList,
 		KazooClient: kz,
 	}

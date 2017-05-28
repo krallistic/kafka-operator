@@ -98,10 +98,7 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 	})
 	methodLogger.Info("Creating KafkaCLient for cluster")
 
-	//TODO
-	brokerList := util.GetBrokerAdressess(cluster)
-
-	client, err := kafka.New(brokerList, cluster.Metadata.Name, cluster.Spec.ZookeeperConnect)
+	client, err := kafka.New(cluster)
 	if err != nil {
 		return err
 	}
