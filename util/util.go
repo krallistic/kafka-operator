@@ -366,17 +366,21 @@ func (c *ClientUtil) BrokerStSDownsize(cluster spec.KafkaCluster) bool {
 
 func GetBrokerAdressess(cluster spec.KafkaCluster) []string {
 	brokers := make([]string, cluster.Spec.BrokerCount)
-	fmt.Println(cluster.Spec.BrokerCount)
+
 	//TODO make governing domain config
 	dnsSuffix := cluster.Metadata.Name + "." + cluster.Metadata.Namespace + ".svc.cluster.local"
 	port := "9092"
+
 	for i := 0; i < int(cluster.Spec.BrokerCount); i++ {
 		hostName := cluster.Metadata.Name + "-" + strconv.Itoa(i)
 		brokers[i] = hostName + "." + dnsSuffix + ":" + port
-		fmt.Println(brokers[i])
-		fmt.Println(i)
 	}
-	fmt.Println(brokers)
+
+	log.WithFields(log.Fields{
+		"method": "GetBrokerAdressess",
+		"cluster": cluster.Metadata.Name,
+		"broker": brokers,
+	}).Info("Created Broker Adresses")
 	return brokers
 }
 
