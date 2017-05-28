@@ -5,6 +5,7 @@ import (
 	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
 	"github.com/krallistic/kafka-operator/spec"
+	kazoo "github.com/krallistic/kazoo-go"
 )
 
 var (
@@ -17,9 +18,10 @@ type KafkaUtil struct {
 	KafkaClient sarama.Client
 	BrokerList  []string
 	ClusterName string
+	KazooClient *kazoo.Kazoo
 }
 
-func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
+func New(brokerList []string, clusterName string, zookeeperConnect string) (*KafkaUtil, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "new",
 		"clusterName": clusterName,
@@ -37,13 +39,23 @@ func New(brokerList []string, clusterName string) (*KafkaUtil, error) {
 		return nil, err
 	}
 
+	kz, err := kazoo.NewKazooFromConnectionString(zookeeperConnect, nil)
+	if err != nil {
+		methodLogger.WithFields(log.Fields{
+			"error": err,
+			"zookeeperConnect": zookeeperConnect,
+		}).Error("Cant create kazoo client")
+		return nil, err
+	}
+
 	k := &KafkaUtil{
 		KafkaClient: client,
 		ClusterName: clusterName,
 		BrokerList:  brokerList,
+		KazooClient: kz,
 	}
 
-	methodLogger.Info("Initilized Kafka CLient and created KafkaUtil")
+	methodLogger.Info("Initilized Kafka CLient, KazooClient and created KafkaUtil")
 	k.ListTopics()
 	return k, nil
 }
@@ -85,7 +97,7 @@ func (k *KafkaUtil) PrintFullStats() error {
 	return nil
 }
 
-func (k *KafkaUtil) GenerateReassign(cluster spec.KafkaCluster, brokerToDelete int) (spec.KafkaReassignmentConfig, error) {
+func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32) (spec.KafkaReassignmentConfig, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GenerateReassign",
 		"clusterName": cluster.Metadata.Name,
@@ -95,7 +107,11 @@ func (k *KafkaUtil) GenerateReassign(cluster spec.KafkaCluster, brokerToDelete i
 		methodLogger.Error("Error Listing Topics")
 		return spec.KafkaReassignmentConfig{}, err
 	}
+
+	//TODO it should be possible to Delete multiple Brokers
+	brokersToDelete := []int32{brokerToDelete}
 	for _, topic := range topics {
+		k.KazooClient.RemoveTopicFromBrokers(topic, brokersToDelete)
 		partitions, err := k.KafkaClient.Partitions(topic)
 		if err != nil {
 			methodLogger.Error("Error Listing Partitions")
@@ -112,6 +128,21 @@ func (k *KafkaUtil) GenerateReassign(cluster spec.KafkaCluster, brokerToDelete i
 	}
 
 	return spec.KafkaReassignmentConfig{}, nil
+}
+
+func (k *KafkaUtil) AllTopicsInSync() bool {
+	//TODO error checking
+	topics, _ := k.KazooClient.Topics()
+	for _, topic := range topics {
+		partitions, _ := topic.Partitions()
+		for _, partition := range partitions {
+			underReplicated, _ := partition.UnderReplicated()
+			if underReplicated{
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (k *KafkaUtil) CreateTopic(topicSpec spec.KafkaTopicSpec) error {
