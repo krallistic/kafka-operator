@@ -101,7 +101,7 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 	//TODO
 	brokerList := util.GetBrokerAdressess(cluster)
 
-	client, err := kafka.New(brokerList, cluster.Metadata.Name)
+	client, err := kafka.New(brokerList, cluster.Metadata.Name, cluster.Spec.ZookeeperConnect)
 	if err != nil {
 		return err
 	}
