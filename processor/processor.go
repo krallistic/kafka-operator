@@ -54,6 +54,12 @@ func (p *Processor) Run() error {
 //We do that because otherwise we would have to use a local state to track changes.
 func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaClusterEvent {
 	fmt.Println("DetectChangeType: ", event)
+	methodLogger := log.WithFields(log.Fields{
+		"method":       "DetectChangeType",
+		"clusterName":  event.Object.Metadata.Name,
+		"eventType":	event.Type,
+	})
+	methodLogger.Info("Detecting type of change in Kafka TPR")
 
 	//TODO multiple changes in one Update? right now we only detect one change
 	clusterEvent := spec.KafkaClusterEvent{
@@ -81,10 +87,6 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 		//TODO change to reconsilation event?
 		return clusterEvent
 	}
-
-	//check IfClusterExist -> NEW_CLUSTER
-	//check if Image/TAG same -> Change_IMAGE
-	//check if BrokerCount same -> Down/Upsize Cluster
 
 	clusterEvent.Type = spec.UNKNOWN_CHANGE
 	return clusterEvent
@@ -114,31 +116,30 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
 func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	fmt.Println("Recieved Event, proceeding: ", currentEvent)
+	methodLogger := log.WithFields(log.Fields{
+		"method":            "processKafkaEvent",
+		"clusterName":       currentEvent.Cluster.Metadata.Name,
+		"KafkaClusterEventType": currentEvent.Type,
+	})
 	switch currentEvent.Type {
 	case spec.NEW_CLUSTER:
 		fmt.Println("ADDED")
 		clustersTotal.Inc()
 		clustersCreated.Inc()
 		p.CreateKafkaCluster(currentEvent.Cluster)
-		go func() {
-			fmt.Println("Init heartbeat type checking...")
-			time.Sleep(30 * time.Second)
-			clusterEvent := spec.KafkaClusterEvent{
-				Cluster: currentEvent.Cluster,
-				Type:    spec.KAKFA_EVENT,
-			}
-			p.clusterEvents <- clusterEvent
-		}()
+		clusterEvent := spec.KafkaClusterEvent{
+			Cluster: currentEvent.Cluster,
+			Type:    spec.KAKFA_EVENT,
+		}
+		methodLogger.Info("Init heartbeat type checking...")
+		p.RetryEvent(clusterEvent)
 		break
 
 	case spec.DELTE_CLUSTER:
-		fmt.Println("Delete Cluster, deleting all Objects: ", currentEvent.Cluster, currentEvent.Cluster.Spec)
+		methodLogger.Info("Delete Cluster, deleting all Objects ")
 		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
 			//Error while deleting, just resubmit event after wait time.
-			go func() {
-				time.Sleep(30 * time.Second)
-				p.clusterEvents <- currentEvent
-			}()
+			p.RetryEvent(currentEvent)
 			break
 		}
 
@@ -154,13 +155,10 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersTotal.Dec()
 		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
-		fmt.Println("Change Image, updating StatefulSet should be enoguh to trigger a new Image Rollout")
+		fmt.Println("Change Image, updating StatefulSet should be enough to trigger a new Image Rollout")
 		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
 			//Error updating
-			go func() {
-				time.Sleep(30 * time.Second)
-				p.clusterEvents <- currentEvent
-			}()
+			p.RetryEvent(currentEvent)
 			break
 		}
 		clustersModified.Inc()
@@ -169,7 +167,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		p.util.UpsizeBrokerStS(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
-		fmt.Println("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
+		methodLogger.Warn("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
 		clustersModified.Inc()
 	case spec.DOWNSIZE_CLUSTER:
 		fmt.Println("Downsize Cluster")
@@ -178,26 +176,37 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
 		fmt.Println("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
 		p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, "deleting")
+		states, err := p.util.GetBrokerStates(currentEvent.Cluster)
+		if err != nil {
+			//just re-try delete event
+			p.RetryEvent(currentEvent)
+			break
+		}
+		p.EmptyingBroker(currentEvent.Cluster, states)
 
 		clustersModified.Inc()
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
-		fmt.Println("Trying to change zookeeper connect, not supported currently")
+		methodLogger.Warn("Trying to change zookeeper connect, not supported currently")
 		clustersModified.Inc()
 	case spec.CLEANUP_EVENT:
 		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		fmt.Println("Kafka Event, heartbeat etc..")
-		go func() {
-			time.Sleep(30 * time.Second)
-			p.clusterEvents <- currentEvent
-		}()
+		p.RetryEvent(currentEvent)
 
 		//states := p.util.GetPodAnnotations(currentEvent.Cluster)
 		//name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
 		//p.kafkaClient[name].PrintFullStats()
 
 	}
+}
+
+func (p *Processor) RetryEvent(currentEvent spec.KafkaClusterEvent) {
+	go func() {
+		time.Sleep(30 * time.Second)
+		p.clusterEvents <- currentEvent
+	}()
 }
 
 func (p *Processor) EmptyingBroker(cluster spec.KafkaCluster, states []string) error {
