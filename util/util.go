@@ -339,29 +339,16 @@ func (c *ClientUtil) BrokerStatefulSetExist(cluster spec.KafkaCluster) bool {
 	return true
 }
 
-func (c *ClientUtil) BrokerStSImageUpdate(cluster spec.KafkaCluster) bool {
-	kafkaClusterSpec := cluster.Spec
-
-	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
-	if err != nil {
-		fmt.Println("TODO error?")
-	}
-	//TODO multiple Containers
-
-	if (len(statefulSet.Spec.ServiceName) == 0) && (statefulSet.Spec.Template.Spec.Containers[0].Image != kafkaClusterSpec.Image) {
-		return true
-	}
-	return false
+func (c *ClientUtil) BrokerStSImageUpdate(oldCluster spec.KafkaCluster, newCluster spec.KafkaCluster) bool {
+	return oldCluster.Spec.Image != newCluster.Spec.Image
 }
 
-func (c *ClientUtil) BrokerStSUpsize(cluster spec.KafkaCluster) bool {
-	statefulSet, _ := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
-	return *statefulSet.Spec.Replicas < cluster.Spec.BrokerCount
+func (c *ClientUtil) BrokerStSUpsize(oldCluster spec.KafkaCluster, newCluster spec.KafkaCluster) bool {
+	return oldCluster.Spec.BrokerCount < newCluster.Spec.BrokerCount
 }
 
-func (c *ClientUtil) BrokerStSDownsize(cluster spec.KafkaCluster) bool {
-	statefulSet, _ := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption)
-	return *statefulSet.Spec.Replicas > cluster.Spec.BrokerCount
+func (c *ClientUtil) BrokerStSDownsize(oldCluster spec.KafkaCluster, newCluster spec.KafkaCluster) bool {
+	return oldCluster.Spec.BrokerCount < newCluster.Spec.BrokerCount
 }
 
 func GetBrokerAdressess(cluster spec.KafkaCluster) []string {

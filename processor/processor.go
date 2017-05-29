@@ -67,13 +67,13 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 		clusterEvent.Type = spec.DELTE_CLUSTER
 		return clusterEvent
 		//EVENT type must be modfied now
-	}  else if p.util.BrokerStSImageUpdate(event.Object) {
+	}  else if p.util.BrokerStSImageUpdate(event.OldObject, event.Object) {
 		clusterEvent.Type = spec.CHANGE_IMAGE
 		return clusterEvent
-	} else if p.util.BrokerStSUpsize(event.Object) {
+	} else if p.util.BrokerStSUpsize(event.OldObject, event.Object) {
 		clusterEvent.Type = spec.UPSIZE_CLUSTER
 		return clusterEvent
-	} else if p.util.BrokerStSDownsize(event.Object) {
+	} else if p.util.BrokerStSDownsize(event.OldObject, event.Object) {
 		clusterEvent.Type = spec.DOWNSIZE_CLUSTER
 		return clusterEvent
 	} else if p.util.BrokerStatefulSetExist(event.Object) {

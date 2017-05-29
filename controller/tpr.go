@@ -125,6 +125,7 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 				//TODO refactor this. use old/new in EventChannel
 				event.Type = "UPDATED"
 				event.Object = *newCluster
+				event.OldObject = *oldCluster
 				eventsChannel <- event
 			},
 

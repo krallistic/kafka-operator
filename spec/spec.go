@@ -66,6 +66,7 @@ type KafkaTopicSpec struct {
 type KafkaClusterWatchEvent struct {
 	Type   string       `json:"type"`
 	Object KafkaCluster `json:"object"`
+	OldObject KafkaCluster `json:"oldObject"`
 }
 
 type KafkaOption struct {
@@ -89,6 +90,7 @@ type KafkaPartition struct {
 type KafkaClusterEvent struct {
 	Type    KafkaEventType
 	Cluster KafkaCluster
+	OldCluster KafkaCluster
 }
 
 type KafkaEventType int32
