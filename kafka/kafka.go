@@ -133,19 +133,28 @@ func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToD
 	return spec.KafkaReassignmentConfig{}, nil
 }
 
-func (k *KafkaUtil) AllTopicsInSync() bool {
+func (k *KafkaUtil) AllTopicsInSync() (bool, error) {
 	//TODO error checking
-	topics, _ := k.KazooClient.Topics()
+	topics, err := k.KazooClient.Topics()
+	if err != nil {
+		return nil, err
+	}
 	for _, topic := range topics {
-		partitions, _ := topic.Partitions()
+		partitions, err := topic.Partitions()
+		if err != nil {
+			return nil, err
+		}
 		for _, partition := range partitions {
-			underReplicated, _ := partition.UnderReplicated()
+			underReplicated, err := partition.UnderReplicated()
+			if err != nil {
+				return nil, err
+			}
 			if underReplicated{
-				return false
+				return false, nil
 			}
 		}
 	}
-	return true
+	return true, nil
 }
 
 func (k *KafkaUtil) CreateTopic(topicSpec spec.KafkaTopicSpec) error {
