@@ -106,11 +106,15 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 	}
 
 	//TODO can metadata.uuid used? check how that changed
-	name := cluster.Metadata.Namespace + "-" + cluster.Metadata.Name
+	name := p.GetClusterUUID(cluster)
 	p.kafkaClient[name] = client
 
 	methodLogger.Info("Create KakfaClient for cluser")
 	return nil
+}
+
+func (p *Processor) GetClusterUUID(cluster spec.KafkaCluster) string{
+	return cluster.Metadata.Namespace + "-" + cluster.Metadata.Name
 }
 
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
@@ -217,6 +221,7 @@ func (p *Processor) EmptyingBroker(cluster spec.KafkaCluster, states []string) e
 			// EMPTY Broker,
 			// generate Downsize Options
 			// Save downsize option and store in k8s
+			p.kafkaClient[p.GetClusterUUID(cluster)].RemoveTopicsFromBrokers(cluster)
 		} else if state == "deleting" {
 			//get downsize option from k8s
 			//check if downsize done
