@@ -106,11 +106,19 @@ const (
 	CHANGE_ZOOKEEPER_CONNECT
 	BROKER_CONFIG_CHANGE
 	UNKNOWN_CHANGE
-	RECONSTILATION_EVENT
+	DOWNSIZE_EVENT
 	//Cleanup event which get emmised after a Cluster Delete.
 	//Its ensure the deletion of the Statefulset after it has been scaled down.
 	CLEANUP_EVENT
 	KAKFA_EVENT
+)
+
+type KafkaBrokerState string
+
+const (
+	EMPTY_BROKER KafkaBrokerState = "EMPTYING"
+	REBALANCE_BROKER KafkaBrokerState = "REBALANCING"
+	NORMAL_STATE KafkaBrokerState = "NORMAL"
 )
 
 // convenience functions
