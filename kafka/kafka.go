@@ -100,7 +100,7 @@ func (k *KafkaUtil) PrintFullStats() error {
 	return nil
 }
 
-func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32) (spec.KafkaReassignmentConfig, error) {
+func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GenerateReassign",
 		"clusterName": cluster.Metadata.Name,
@@ -108,7 +108,7 @@ func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToD
 	topics, err := k.KafkaClient.Topics()
 	if err != nil {
 		methodLogger.Error("Error Listing Topics")
-		return spec.KafkaReassignmentConfig{}, err
+		return err
 	}
 
 	//TODO it should be possible to Delete multiple Brokers
@@ -118,36 +118,35 @@ func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToD
 		partitions, err := k.KafkaClient.Partitions(topic)
 		if err != nil {
 			methodLogger.Error("Error Listing Partitions")
-			return spec.KafkaReassignmentConfig{}, err
+			return err
 		}
 		for _, partition := range partitions {
 			partition, err := k.KafkaClient.Replicas(topic, partition)
 			if err != nil {
 				methodLogger.Error("Error listing partitions")
-				return spec.KafkaReassignmentConfig{}, err
+				return err
 			}
 			fmt.Println(partition)
 		}
 	}
 
-	return spec.KafkaReassignmentConfig{}, nil
+	return nil
 }
 
 func (k *KafkaUtil) AllTopicsInSync() (bool, error) {
-	//TODO error checking
 	topics, err := k.KazooClient.Topics()
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	for _, topic := range topics {
 		partitions, err := topic.Partitions()
 		if err != nil {
-			return nil, err
+			return false, err
 		}
 		for _, partition := range partitions {
 			underReplicated, err := partition.UnderReplicated()
 			if err != nil {
-				return nil, err
+				return false, err
 			}
 			if underReplicated{
 				return false, nil
