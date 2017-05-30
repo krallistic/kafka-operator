@@ -136,14 +136,14 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			Type:    spec.KAKFA_EVENT,
 		}
 		methodLogger.Info("Init heartbeat type checking...")
-		p.RetryEvent(clusterEvent)
+		p.Sleep30AndSendEvent(clusterEvent)
 		break
 
 	case spec.DELTE_CLUSTER:
 		methodLogger.Info("Delete Cluster, deleting all Objects ")
 		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
 			//Error while deleting, just resubmit event after wait time.
-			p.RetryEvent(currentEvent)
+			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
 
@@ -162,7 +162,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("Change Image, updating StatefulSet should be enough to trigger a new Image Rollout")
 		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
 			//Error updating
-			p.RetryEvent(currentEvent)
+			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
 		clustersModified.Inc()
@@ -180,10 +180,12 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
 		fmt.Println("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
 		p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, "deleting")
+		err := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
+
 		states, err := p.util.GetBrokerStates(currentEvent.Cluster)
 		if err != nil {
 			//just re-try delete event
-			p.RetryEvent(currentEvent)
+			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
 		p.EmptyingBroker(currentEvent.Cluster, states)
@@ -197,7 +199,17 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		fmt.Println("Kafka Event, heartbeat etc..")
-		p.RetryEvent(currentEvent)
+		p.Sleep30AndSendEvent(currentEvent)
+	case spec.DOWNSIZE_EVENT:
+		fmt.Println("Got Downsize Event, checking if all Topics are fully replicated and no topic on to delete cluster")
+		//GET CLUSTER TO DELETE
+		//CHECK if
+		inSync, err := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].AllTopicsInSync()
+		if err != nil || !inSync {
+			p.Sleep30AndSendEvent(currentEvent)
+			break
+		}
+
 
 		//states := p.util.GetPodAnnotations(currentEvent.Cluster)
 		//name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
@@ -206,13 +218,16 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	}
 }
 
-func (p *Processor) RetryEvent(currentEvent spec.KafkaClusterEvent) {
+func (p *Processor) Sleep30AndSendEvent(currentEvent spec.KafkaClusterEvent) {
+	p.SleepAndSendEvent(currentEvent, 30)
+}
+
+func (p *Processor) SleepAndSendEvent(currentEvent spec.KafkaClusterEvent, seconds int) {
 	go func() {
-		time.Sleep(30 * time.Second)
+		time.Sleep(time.Second * time.Duration(seconds))
 		p.clusterEvents <- currentEvent
 	}()
 }
-
 func (p *Processor) EmptyingBroker(cluster spec.KafkaCluster, states []string) error {
 
 	for i, state := range states {
@@ -221,7 +236,6 @@ func (p *Processor) EmptyingBroker(cluster spec.KafkaCluster, states []string) e
 			// EMPTY Broker,
 			// generate Downsize Options
 			// Save downsize option and store in k8s
-			p.kafkaClient[p.GetClusterUUID(cluster)].RemoveTopicsFromBrokers(cluster)
 		} else if state == "deleting" {
 			//get downsize option from k8s
 			//check if downsize done
