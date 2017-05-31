@@ -81,9 +81,15 @@ type KafkaReassignmentConfig struct {
 }
 
 type KafkaPartition struct {
+	Partition int32 `json:"partition"`
+	Replicas []int32 `json:"replicas"`
+}
+
+type KafkaTopic struct {
 	Topic string `json:"topic"`
-	Partition int `json:"partition"`
-	Replicas []int `json:"replicas"`
+	PartitionFactor int32 `json:"partition_factor"`
+	ReplicationFactor int32 `json:"replication_factor"`
+	Partitions []KafkaPartition `json:"partitions"`
 }
 
 //No json needed since internal Event type.

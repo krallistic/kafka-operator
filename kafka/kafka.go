@@ -100,10 +100,100 @@ func (k *KafkaUtil) PrintFullStats() error {
 	return nil
 }
 
+
+func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.KafkaCluster, brokerId int32) ([]string, error){
+	methodLogger := log.WithFields(log.Fields{
+		"method":      "GetTopicsOnBroker",
+		"clusterName": cluster.Metadata.Name,
+	})
+	topicConfiguration, err := k.GetTopicConfiguration(cluster)
+	if err != nil {
+		return nil, err
+	}
+	topicOnBroker := make([]string, 0)
+
+	for _, topic := range topicConfiguration {
+partitionLoop:
+		for _, partition := range topic.Partitions {
+			for _, replica := range partition.Replicas {
+				if replica == brokerId {
+					topicOnBroker = append(topicOnBroker, topic.Topic)
+					break partitionLoop
+				}
+			}
+		}
+	}
+	methodLogger.WithFields(log.Fields{
+		"topics": topicOnBroker,
+	}).Debug("Topics on Broker")
+	return topicOnBroker, nil
+}
+
+
+
+
+func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.KafkaTopic, error) {
+	methodLogger := log.WithFields(log.Fields{
+		"method":      "GetTopicConfiguration",
+		"clusterName": cluster.Metadata.Name,
+	})
+	topics, err := k.KafkaClient.Topics()
+	if err != nil {
+		methodLogger.Error("Error Listing Topics")
+		return nil, err
+	}
+	configuration := make([]spec.KafkaTopic, len(topics))
+	for i, topic := range topics {
+
+		partitions, err := k.KafkaClient.Partitions(topic)
+		if err != nil {
+			methodLogger.Error("Error Listing Partitions")
+			return nil, err
+		}
+		t := spec.KafkaTopic{
+			Topic:topic,
+			PartitionFactor: int32(len(partitions)),
+			ReplicationFactor: 3,
+			Partitions: make([]spec.KafkaPartition, len(partitions)),
+		}
+		for j, partition := range partitions {
+			replicas, err := k.KafkaClient.Replicas(topic, partition)
+			if err != nil {
+				methodLogger.Error("Error listing partitions")
+				return nil, err
+			}
+			t.Partitions[j] = spec.KafkaPartition{
+				Partition: int32(j),
+				Replicas: replicas,
+			}
+		}
+		configuration[i] = t
+	}
+	return configuration, nil
+}
+
+func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32, topic string) error {
+	methodLogger := log.WithFields(log.Fields{
+		"method":      "RemoveTopicFromBrokers",
+		"clusterName": cluster.Metadata.Name,
+		"brokerToDelte": brokerToDelete,
+		"topic": topic,
+	})
+
+	brokersToDelete := []int32{brokerToDelete}
+	err := k.KazooClient.RemoveTopicFromBrokers(topic, brokersToDelete)
+	if err != nil {
+		methodLogger.Warn("Error removing topic from Broker", err)
+		return err
+	}
+	return nil
+}
+
 func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32) error {
 	methodLogger := log.WithFields(log.Fields{
-		"method":      "GenerateReassign",
+		"method":      "RemoveTopicsFromBrokers",
 		"clusterName": cluster.Metadata.Name,
+		"brokerToDelte": brokerToDelete,
 	})
 	topics, err := k.KafkaClient.Topics()
 	if err != nil {
@@ -112,22 +202,8 @@ func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToD
 	}
 
 	//TODO it should be possible to Delete multiple Brokers
-	brokersToDelete := []int32{brokerToDelete}
 	for _, topic := range topics {
-		k.KazooClient.RemoveTopicFromBrokers(topic, brokersToDelete)
-		partitions, err := k.KafkaClient.Partitions(topic)
-		if err != nil {
-			methodLogger.Error("Error Listing Partitions")
-			return err
-		}
-		for _, partition := range partitions {
-			partition, err := k.KafkaClient.Replicas(topic, partition)
-			if err != nil {
-				methodLogger.Error("Error listing partitions")
-				return err
-			}
-			fmt.Println(partition)
-		}
+		k.RemoveTopicFromBrokers(cluster,brokerToDelete, topic)
 	}
 
 	return nil

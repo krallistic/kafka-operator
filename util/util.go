@@ -226,6 +226,26 @@ func (c *ClientUtil) GetPodAnnotations(cluster spec.KafkaCluster) error {
 	return nil
 }
 
+
+
+//TODO return multiple not LAst?
+//Return the Last Broker with the Desired State
+func (c *ClientUtil) GetBrokersWithState(cluster spec.KafkaCluster, state spec.KafkaBrokerState) (int32,error) {
+	states, err := c.GetBrokerStates(cluster)
+	if err != nil {
+		return -1, err
+	}
+	brokerID := -1
+	//TODO Invert
+	for i, s := range states {
+		if string(state) == s {
+			brokerID = i
+		}
+	}
+
+	return int32(brokerID),nil
+}
+
 func (c *ClientUtil) GetBrokerStates(cluster spec.KafkaCluster) ([]string, error) {
 
 

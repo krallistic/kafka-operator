@@ -201,9 +201,27 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("Kafka Event, heartbeat etc..")
 		p.Sleep30AndSendEvent(currentEvent)
 	case spec.DOWNSIZE_EVENT:
-		fmt.Println("Got Downsize Event, checking if all Topics are fully replicated and no topic on to delete cluster")
+		methodLogger.Info("Got Downsize Event, checking if all Topics are fully replicated and no topic on to delete cluster")
 		//GET CLUSTER TO DELETE
-		//CHECK if
+		toDelete, err := p.util.GetBrokersWithState(currentEvent.Cluster, spec.EMPTY_BROKER)
+		if err != nil {
+			p.Sleep30AndSendEvent(currentEvent)
+		}
+		kafkaClient := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)]
+		topics, err := kafkaClient.GetTopicsOnBroker(currentEvent.Cluster, int32(toDelete))
+		if len(topics) > 0 {
+			//Move topics from Broker
+			methodLogger.Warn("New Topics found on Broker which should be deleted, moving Topics Off", topics)
+			for _, topic := range topics {
+				kafkaClient.RemoveTopicFromBrokers(currentEvent.Cluster, toDelete, topic)
+			}
+
+			break
+		}
+		if err != nil {
+			p.Sleep30AndSendEvent(currentEvent)
+		}
+		//CHECK if all Topics has been moved off
 		inSync, err := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].AllTopicsInSync()
 		if err != nil || !inSync {
 			p.Sleep30AndSendEvent(currentEvent)
