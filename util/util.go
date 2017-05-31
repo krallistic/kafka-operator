@@ -22,15 +22,15 @@ import (
 	log "github.com/Sirupsen/logrus"
 	//	"k8s.io/client-go/tools/cache"
 
-	"strconv"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"strconv"
 )
 
 const (
-	tprName     = "kafka.operator.com"
-	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
-	defaultCPU  = "1"
-	defaultDisk = "100G"
+	tprName         = "kafka.operator.com"
+	tprEndpoint     = "/apis/extensions/v1beta1/thirdpartyresources"
+	defaultCPU      = "1"
+	defaultDisk     = "100G"
 	stateAnnotation = "kafka-cluster.incubator/state"
 )
 
@@ -104,9 +104,9 @@ func (c *ClientUtil) CreateStorage(cluster spec.KafkaClusterSpec) {
 
 func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error {
 	methodLogger := logger.WithFields(log.Fields{
-		"method": "CreateDirectBrokerService",
-		"name": cluster.Metadata.Name,
-		"namespace": cluster.Metadata.Namespace,
+		"method":      "CreateDirectBrokerService",
+		"name":        cluster.Metadata.Name,
+		"namespace":   cluster.Metadata.Namespace,
 		"brokerCount": cluster.Spec.BrokerCount,
 	})
 
@@ -118,7 +118,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 		cluster_name := cluster.Metadata.Name
 
 		methodLogger.WithFields(log.Fields{
-			"id": i,
+			"id":           i,
 			"service_name": service_name,
 		}).Info("Creating Direct Broker SVC: ")
 
@@ -134,7 +134,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 		if len(svc.Name) == 0 {
 			//Service dosnt exist, creating
 			objectMeta := metav1.ObjectMeta{
-				Name: service_name,
+				Name:      service_name,
 				Namespace: cluster.Metadata.Namespace,
 				Annotations: map[string]string{
 					"component": "kafka",
@@ -148,16 +148,16 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 				Spec: v1.ServiceSpec{
 					Type: v1.ServiceTypeNodePort,
 					Selector: map[string]string{
-						"component": "kafka",
-						"creator":   "kafkaOperator",
-						"role":      "data",
-						"name":      cluster_name,
+						"component":       "kafka",
+						"creator":         "kafkaOperator",
+						"role":            "data",
+						"name":            cluster_name,
 						"kafka_broker_id": strconv.Itoa(i),
 					},
 					Ports: []v1.ServicePort{
 						v1.ServicePort{
-							Name: "broker",
-							Port: 9092,
+							Name:     "broker",
+							Port:     9092,
 							NodePort: 30092,
 						},
 					},
@@ -166,13 +166,13 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 			_, err := c.KubernetesClient.Services(cluster.Metadata.Namespace).Create(service)
 			if err != nil {
 				methodLogger.WithFields(log.Fields{
-					"error": err,
+					"error":        err,
 					"service_name": service_name,
 				}).Error("Error while creating direct broker service")
 				return err
 			}
 			methodLogger.WithFields(log.Fields{
-				"service": service,
+				"service":      service,
 				"service_name": service_name,
 			}).Debug("Created direct Access Service")
 		}
@@ -212,7 +212,7 @@ func (c *ClientUtil) GetReadyEndpoints(serviceName string, namespace string) []s
 
 func (c *ClientUtil) GetPodAnnotations(cluster spec.KafkaCluster) error {
 	pods, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).List(metav1.ListOptions{
-		LabelSelector: "creator=kafkaOperator,name="+cluster.Metadata.Name,
+		LabelSelector: "creator=kafkaOperator,name=" + cluster.Metadata.Name,
 	})
 	if err != nil {
 		fmt.Println(err)
@@ -226,11 +226,9 @@ func (c *ClientUtil) GetPodAnnotations(cluster spec.KafkaCluster) error {
 	return nil
 }
 
-
-
 //TODO return multiple not LAst?
 //Return the Last Broker with the Desired State
-func (c *ClientUtil) GetBrokersWithState(cluster spec.KafkaCluster, state spec.KafkaBrokerState) (int32,error) {
+func (c *ClientUtil) GetBrokersWithState(cluster spec.KafkaCluster, state spec.KafkaBrokerState) (int32, error) {
 	states, err := c.GetBrokerStates(cluster)
 	if err != nil {
 		return -1, err
@@ -243,15 +241,14 @@ func (c *ClientUtil) GetBrokersWithState(cluster spec.KafkaCluster, state spec.K
 		}
 	}
 
-	return int32(brokerID),nil
+	return int32(brokerID), nil
 }
 
 func (c *ClientUtil) GetBrokerStates(cluster spec.KafkaCluster) ([]string, error) {
 
-
 	states := make([]string, cluster.Spec.BrokerCount)
 	pods, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).List(metav1.ListOptions{
-		LabelSelector: "creator=kafkaOperator,name="+cluster.Metadata.Name,
+		LabelSelector: "creator=kafkaOperator,name=" + cluster.Metadata.Name,
 	})
 	if err != nil {
 		fmt.Println(err)
@@ -271,7 +268,7 @@ func (c *ClientUtil) GetBrokerStates(cluster spec.KafkaCluster) ([]string, error
 
 func (c *ClientUtil) SetBrokerState(cluster spec.KafkaCluster, brokerId int32, state spec.KafkaBrokerState) error {
 
-	pod, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).Get(cluster.Metadata.Name + "-" + strconv.Itoa(int(brokerId)),c.DefaultOption)
+	pod, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).Get(cluster.Metadata.Name+"-"+strconv.Itoa(int(brokerId)), c.DefaultOption)
 	if err != nil {
 		return err
 	}
@@ -384,9 +381,9 @@ func GetBrokerAdressess(cluster spec.KafkaCluster) []string {
 	}
 
 	log.WithFields(log.Fields{
-		"method": "GetBrokerAdressess",
+		"method":  "GetBrokerAdressess",
 		"cluster": cluster.Metadata.Name,
-		"broker": brokers,
+		"broker":  brokers,
 	}).Info("Created Broker Adresses")
 	return brokers
 }

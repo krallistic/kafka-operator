@@ -55,9 +55,9 @@ func (p *Processor) Run() error {
 func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaClusterEvent {
 	fmt.Println("DetectChangeType: ", event)
 	methodLogger := log.WithFields(log.Fields{
-		"method":       "DetectChangeType",
-		"clusterName":  event.Object.Metadata.Name,
-		"eventType":	event.Type,
+		"method":      "DetectChangeType",
+		"clusterName": event.Object.Metadata.Name,
+		"eventType":   event.Type,
 	})
 	methodLogger.Info("Detecting type of change in Kafka TPR")
 
@@ -73,7 +73,7 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 		clusterEvent.Type = spec.DELTE_CLUSTER
 		return clusterEvent
 		//EVENT type must be modfied now
-	}  else if p.util.BrokerStSImageUpdate(event.OldObject, event.Object) {
+	} else if p.util.BrokerStSImageUpdate(event.OldObject, event.Object) {
 		clusterEvent.Type = spec.CHANGE_IMAGE
 		return clusterEvent
 	} else if p.util.BrokerStSUpsize(event.OldObject, event.Object) {
@@ -113,7 +113,7 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 	return nil
 }
 
-func (p *Processor) GetClusterUUID(cluster spec.KafkaCluster) string{
+func (p *Processor) GetClusterUUID(cluster spec.KafkaCluster) string {
 	return cluster.Metadata.Namespace + "-" + cluster.Metadata.Name
 }
 
@@ -121,8 +121,8 @@ func (p *Processor) GetClusterUUID(cluster spec.KafkaCluster) string{
 func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	fmt.Println("Recieved Event, proceeding: ", currentEvent)
 	methodLogger := log.WithFields(log.Fields{
-		"method":            "processKafkaEvent",
-		"clusterName":       currentEvent.Cluster.Metadata.Name,
+		"method":                "processKafkaEvent",
+		"clusterName":           currentEvent.Cluster.Metadata.Name,
 		"KafkaClusterEventType": currentEvent.Type,
 	})
 	switch currentEvent.Type {
@@ -231,7 +231,6 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			break
 		}
 
-
 		//states := p.util.GetPodAnnotations(currentEvent.Cluster)
 		//name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
 		//p.kafkaClient[name].PrintFullStats()
@@ -249,7 +248,6 @@ func (p *Processor) SleepAndSendEvent(currentEvent spec.KafkaClusterEvent, secon
 		p.clusterEvents <- currentEvent
 	}()
 }
-
 
 //Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside

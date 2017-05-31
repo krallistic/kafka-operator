@@ -5,8 +5,8 @@ import (
 	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
 	"github.com/krallistic/kafka-operator/spec"
-	kazoo "github.com/krallistic/kazoo-go"
 	"github.com/krallistic/kafka-operator/util"
+	kazoo "github.com/krallistic/kazoo-go"
 )
 
 var (
@@ -45,7 +45,7 @@ func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
 	kz, err := kazoo.NewKazooFromConnectionString(clusterSpec.Spec.ZookeeperConnect, nil)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
-			"error": err,
+			"error":            err,
 			"zookeeperConnect": clusterSpec.Spec.ZookeeperConnect,
 		}).Error("Cant create kazoo client")
 		return nil, err
@@ -100,8 +100,7 @@ func (k *KafkaUtil) PrintFullStats() error {
 	return nil
 }
 
-
-func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.KafkaCluster, brokerId int32) ([]string, error){
+func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.KafkaCluster, brokerId int32) ([]string, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GetTopicsOnBroker",
 		"clusterName": cluster.Metadata.Name,
@@ -113,7 +112,7 @@ func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.KafkaCluster, brokerId int32)
 	topicOnBroker := make([]string, 0)
 
 	for _, topic := range topicConfiguration {
-partitionLoop:
+	partitionLoop:
 		for _, partition := range topic.Partitions {
 			for _, replica := range partition.Replicas {
 				if replica == brokerId {
@@ -128,9 +127,6 @@ partitionLoop:
 	}).Debug("Topics on Broker")
 	return topicOnBroker, nil
 }
-
-
-
 
 func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.KafkaTopic, error) {
 	methodLogger := log.WithFields(log.Fields{
@@ -151,10 +147,10 @@ func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.Kaf
 			return nil, err
 		}
 		t := spec.KafkaTopic{
-			Topic:topic,
-			PartitionFactor: int32(len(partitions)),
+			Topic:             topic,
+			PartitionFactor:   int32(len(partitions)),
 			ReplicationFactor: 3,
-			Partitions: make([]spec.KafkaPartition, len(partitions)),
+			Partitions:        make([]spec.KafkaPartition, len(partitions)),
 		}
 		for j, partition := range partitions {
 			replicas, err := k.KafkaClient.Replicas(topic, partition)
@@ -164,7 +160,7 @@ func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.Kaf
 			}
 			t.Partitions[j] = spec.KafkaPartition{
 				Partition: int32(j),
-				Replicas: replicas,
+				Replicas:  replicas,
 			}
 		}
 		configuration[i] = t
@@ -174,10 +170,10 @@ func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.Kaf
 
 func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32, topic string) error {
 	methodLogger := log.WithFields(log.Fields{
-		"method":      "RemoveTopicFromBrokers",
-		"clusterName": cluster.Metadata.Name,
+		"method":        "RemoveTopicFromBrokers",
+		"clusterName":   cluster.Metadata.Name,
 		"brokerToDelte": brokerToDelete,
-		"topic": topic,
+		"topic":         topic,
 	})
 
 	brokersToDelete := []int32{brokerToDelete}
@@ -191,8 +187,8 @@ func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.KafkaCluster, brokerToDe
 
 func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32) error {
 	methodLogger := log.WithFields(log.Fields{
-		"method":      "RemoveTopicsFromBrokers",
-		"clusterName": cluster.Metadata.Name,
+		"method":        "RemoveTopicsFromBrokers",
+		"clusterName":   cluster.Metadata.Name,
 		"brokerToDelte": brokerToDelete,
 	})
 	topics, err := k.KafkaClient.Topics()
@@ -203,7 +199,7 @@ func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToD
 
 	//TODO it should be possible to Delete multiple Brokers
 	for _, topic := range topics {
-		k.RemoveTopicFromBrokers(cluster,brokerToDelete, topic)
+		k.RemoveTopicFromBrokers(cluster, brokerToDelete, topic)
 	}
 
 	return nil
@@ -224,7 +220,7 @@ func (k *KafkaUtil) AllTopicsInSync() (bool, error) {
 			if err != nil {
 				return false, err
 			}
-			if underReplicated{
+			if underReplicated {
 				return false, nil
 			}
 		}

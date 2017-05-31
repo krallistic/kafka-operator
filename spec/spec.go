@@ -64,8 +64,8 @@ type KafkaTopicSpec struct {
 }
 
 type KafkaClusterWatchEvent struct {
-	Type   string       `json:"type"`
-	Object KafkaCluster `json:"object"`
+	Type      string       `json:"type"`
+	Object    KafkaCluster `json:"object"`
 	OldObject KafkaCluster `json:"oldObject"`
 }
 
@@ -77,25 +77,25 @@ type KafkaOption struct {
 
 type KafkaReassignmentConfig struct {
 	Partition []KafkaPartition `json:"partition"`
-	Version string `json:"version"`
+	Version   string           `json:"version"`
 }
 
 type KafkaPartition struct {
-	Partition int32 `json:"partition"`
-	Replicas []int32 `json:"replicas"`
+	Partition int32   `json:"partition"`
+	Replicas  []int32 `json:"replicas"`
 }
 
 type KafkaTopic struct {
-	Topic string `json:"topic"`
-	PartitionFactor int32 `json:"partition_factor"`
-	ReplicationFactor int32 `json:"replication_factor"`
-	Partitions []KafkaPartition `json:"partitions"`
+	Topic             string           `json:"topic"`
+	PartitionFactor   int32            `json:"partition_factor"`
+	ReplicationFactor int32            `json:"replication_factor"`
+	Partitions        []KafkaPartition `json:"partitions"`
 }
 
 //No json needed since internal Event type.
 type KafkaClusterEvent struct {
-	Type    KafkaEventType
-	Cluster KafkaCluster
+	Type       KafkaEventType
+	Cluster    KafkaCluster
 	OldCluster KafkaCluster
 }
 
@@ -122,9 +122,9 @@ const (
 type KafkaBrokerState string
 
 const (
-	EMPTY_BROKER KafkaBrokerState = "EMPTYING"
+	EMPTY_BROKER     KafkaBrokerState = "EMPTYING"
 	REBALANCE_BROKER KafkaBrokerState = "REBALANCING"
-	NORMAL_STATE KafkaBrokerState = "NORMAL"
+	NORMAL_STATE     KafkaBrokerState = "NORMAL"
 )
 
 // convenience functions
