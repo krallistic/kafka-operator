@@ -269,13 +269,13 @@ func (c *ClientUtil) GetBrokerStates(cluster spec.KafkaCluster) ([]string, error
 	return states, nil
 }
 
-func (c *ClientUtil) SetBrokerState(cluster spec.KafkaCluster, brokerId int32, state string) error {
+func (c *ClientUtil) SetBrokerState(cluster spec.KafkaCluster, brokerId int32, state spec.KafkaBrokerState) error {
 
 	pod, err := c.KubernetesClient.Pods(cluster.Metadata.Namespace).Get(cluster.Metadata.Name + "-" + strconv.Itoa(int(brokerId)),c.DefaultOption)
 	if err != nil {
 		return err
 	}
-	pod.Annotations[stateAnnotation] = state
+	pod.Annotations[stateAnnotation] = string(state)
 
 	_, err = c.KubernetesClient.Pods(cluster.Metadata.Namespace).Update(pod)
 	if err != nil {

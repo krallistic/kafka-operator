@@ -179,17 +179,20 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		//TODO support Downsizing Multiple Brokers
 		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
 		fmt.Println("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
-		p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, "deleting")
-		err := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
 
-		states, err := p.util.GetBrokerStates(currentEvent.Cluster)
+		err := p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, spec.EMPTY_BROKER)
 		if err != nil {
 			//just re-try delete event
 			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
-		p.EmptyingBroker(currentEvent.Cluster, states)
 
+		err = p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
+		if err != nil {
+			//just re-try delete event
+			p.Sleep30AndSendEvent(currentEvent)
+			break
+		}
 		clustersModified.Inc()
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
 		methodLogger.Warn("Trying to change zookeeper connect, not supported currently")
@@ -246,28 +249,7 @@ func (p *Processor) SleepAndSendEvent(currentEvent spec.KafkaClusterEvent, secon
 		p.clusterEvents <- currentEvent
 	}()
 }
-func (p *Processor) EmptyingBroker(cluster spec.KafkaCluster, states []string) error {
 
-	for i, state := range states {
-		fmt.Println("State, Index: ", state, i)
-		if state == "toDelete" {
-			// EMPTY Broker,
-			// generate Downsize Options
-			// Save downsize option and store in k8s
-		} else if state == "deleting" {
-			//get downsize option from k8s
-			//check if downsize done
-		} else if state == "deleted" {
-			//downsize Broker
-
-		} else {
-			//DO nothing?
-		}
-	}
-
-
-	return nil
-}
 
 //Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside
