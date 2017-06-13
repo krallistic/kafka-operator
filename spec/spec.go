@@ -86,7 +86,7 @@ type KafkaOptions struct {
 
 	//Default compression type for a topic. Can be "gzip", "snappy", "lz4"
 	// Default: "gzip"
-	CompressionType   string `json:compressionType`
+	CompressionType   string `json:"compressionType"`
 
 	//Enables delete topic. Delete topic through the admin tool will have no effect if this config is turned off
 	// Default: false
@@ -108,11 +108,11 @@ type KafkaOptions struct {
 	// The maximum time in ms that a message in any topic is kept in memory before flushed to disk.
 	// If not set, the value in log.flush.scheduler.interval.ms is used
 	// Default: null
-	LogFlushIntervalMs int64 `json:logFlushIntervalMs`
+	LogFlushIntervalMs int64 `json:"logFlushIntervalMs"`
 
 	//The frequency with which we update the persistent record of the last flush which acts as the log recovery point
 	// Default: 60000
-	LogFlushOffsetCheckpointIntervalMs int32 `json:logFlushOffsetCheckpointIntervalMs`
+	LogFlushOffsetCheckpointIntervalMs int32 `json:"logFlushOffsetCheckpointIntervalMs"`
 
 	//The frequency in ms that the log flusher checks whether any log needs to be flushed to disk
 	// Default: 9223372036854775807
@@ -132,25 +132,25 @@ type KafkaOptions struct {
 
 	// The maximum jitter to subtract from logRollTimeMillis (in hours), secondary to log.roll.jitter.ms property
 	// Default: 0
-	LogRollJitterHours int32 `json:logRollJitterHours`
+	LogRollJitterHours int32 `json:"logRollJitterHours"`
 
 	//The maximum size of a single log file
 	// Default: 1073741824
-	LogSegmentBytes int32 `json:logSegmentBytes`
+	LogSegmentBytes int32 `json:"logSegmentBytes"`
 
 	// The amount of time to wait before deleting a file from the filesystem
 	// Default: 60000
-	LogSegmentDeleteDelayMS int64 `json:logSegmentDeleteDelayMS`
+	LogSegmentDeleteDelayMS int64 `json:"logSegmentDeleteDelayMS"`
 
 	// The maximum size of message that the server can receive
 	// Default: 1000012
-	MessagesMaxBytes int32 `json:messagesMaxBytes`
+	MessagesMaxBytes int32 `json:"messagesMaxBytes"`
 
 	// When a producer sets acks to "all" (or "-1"), min.insync.replicas specifies the minimum number of replicas that must acknowledge
 	// a write for the write to be considered successful.
 	// Can be overwritten at topic level
 	// Default: 1
-	MinInsyncReplicas int32 `json:minInsyncReplicas`
+	MinInsyncReplicas int32 `json:"minInsyncReplicas"`
 
 	// The number of io threads that the server uses for carrying out network requests
 	// Default: 8
