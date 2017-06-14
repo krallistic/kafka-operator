@@ -19,7 +19,7 @@ const (
 	prometheusPathAnnotation = "prometheus.io/path"
 
 	metricPath = "/metrics"
-	metricsPort = "10250"
+	metricsPort = "8080"
 	metricsScrape = "true"
 )
 
@@ -78,22 +78,25 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 									v1.ContainerPort{
 										Name: "prometheus",
 										//TODO configPort
-										ContainerPort: 10250,
+										ContainerPort: 8080,
 									},
 								},
 								Env: []v1.EnvVar{
 									v1.EnvVar{
-										//TODO fill in with real
-										Name: "clusterName",
-										ValueFrom: &v1.EnvVarSource{
-											FieldRef: &v1.ObjectFieldSelector{
-												FieldPath: "metadata.namespace",
-											},
-										},
+										Name: "cluster-name",
+										Value: cluster.Metadata.Name,
 									},
 									v1.EnvVar{
-										Name:  "zookeeperConnect",
+										Name:  "zookeeper-connect",
 										Value: cluster.Spec.ZookeeperConnect,
+									},
+									v1.EnvVar{
+										Name:  "listen-address",
+										Value: "8080",
+									},
+									v1.EnvVar{
+										Name:  "telemetry-path",
+										Value: "/metrics",
 									},
 								},
 							},
