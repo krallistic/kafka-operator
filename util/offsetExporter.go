@@ -1,8 +1,8 @@
 package util
 
 import (
-	"github.com/krallistic/kafka-operator/spec"
 	"fmt"
+	"github.com/krallistic/kafka-operator/spec"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	deplyomentPrefix = "kafka-offset-checker"
-	offsetExporterImage = "krallistic/kafka_offset_exporter" //TODO
-	offsetExporterVersion = "latest" //TODO make version cmd arg
+	deplyomentPrefix      = "kafka-offset-checker"
+	offsetExporterImage   = "krallistic/kafka_offset_exporter" //TODO
+	offsetExporterVersion = "latest"                           //TODO make version cmd arg
 
 	prometheusScrapeAnnotation = "prometheus.io/scrape"
-	prometheusPortAnnotation = "prometheus.io/port"
-	prometheusPathAnnotation = "prometheus.io/path"
+	prometheusPortAnnotation   = "prometheus.io/port"
+	prometheusPathAnnotation   = "prometheus.io/path"
 
-	metricPath = "/metrics"
-	metricsPort = "8080"
+	metricPath    = "/metrics"
+	metricsPort   = "8080"
 	metricsScrape = "true"
 )
 
@@ -59,8 +59,8 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 				"role":      "data",
 				"type":      "service",
 				prometheusScrapeAnnotation: metricsScrape,
-				prometheusPortAnnotation: metricsPort,
-				prometheusPathAnnotation: metricPath,
+				prometheusPortAnnotation:   metricsPort,
+				prometheusPathAnnotation:   metricPath,
 			},
 		}
 		deploy := appsv1Beta1.Deployment{
@@ -72,7 +72,7 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							v1.Container{
-								Name: "offfsetExporter",
+								Name:  "offfsetExporter",
 								Image: offsetExporterImage + ":" + offsetExporterVersion,
 								Ports: []v1.ContainerPort{
 									v1.ContainerPort{
@@ -83,7 +83,7 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 								},
 								Env: []v1.EnvVar{
 									v1.EnvVar{
-										Name: "cluster-name",
+										Name:  "cluster-name",
 										Value: cluster.Metadata.Name,
 									},
 									v1.EnvVar{
@@ -103,10 +103,8 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 						},
 					},
 				},
-
 			},
 		}
-
 
 		_, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Create(&deploy)
 		if err != nil {
@@ -121,7 +119,6 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 	return nil
 }
 
-
 //Deletes the offset checker for the given kafka cluster.
 // Return error if any problems occurs. (Except if monitor dosnt exist)
 //
@@ -135,7 +132,7 @@ func (c *ClientUtil) DeleteOffsetMonitor(cluster spec.KafkaCluster) error {
 
 	deployment, err := c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.Metadata.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption) //Scaling Replicas down to Zero
 	if (len(deployment.Name) == 0) && (err != nil) {
-		fmt.Println("Error while getting Deployment," +
+		fmt.Println("Error while getting Deployment,"+
 			" since we want to delete that should be fine: ", err)
 		return nil
 	}
@@ -158,4 +155,3 @@ func (c *ClientUtil) DeleteOffsetMonitor(cluster spec.KafkaCluster) error {
 	}
 	return nil
 }
-
