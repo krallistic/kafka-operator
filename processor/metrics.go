@@ -30,6 +30,13 @@ var (
 		Name:      "clusters_modified",
 		Help:      "Total number of clusters modified",
 	})
+
+	internalErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "kafka_operator",
+		Subsystem: "processor",
+		Name:      "internal_errors",
+		Help:      "Total Number of errors occured somewhere inside the operator",
+	})
 )
 
 func init() {
@@ -37,4 +44,5 @@ func init() {
 	prometheus.MustRegister(clustersCreated)
 	prometheus.MustRegister(clustersDeleted)
 	prometheus.MustRegister(clustersModified)
+	prometheus.MustRegister(internalErrors)
 }

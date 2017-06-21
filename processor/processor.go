@@ -102,6 +102,7 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 
 	client, err := kafka.New(cluster)
 	if err != nil {
+		internalErrors.Inc()
 		return err
 	}
 
@@ -162,12 +163,13 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		fmt.Println("Change Image, updating StatefulSet should be enough to trigger a new Image Rollout")
 		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
 			//Error updating
+			internalErrors.Inc()
 			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
 		clustersModified.Inc()
 	case spec.UPSIZE_CLUSTER:
-		fmt.Println("Upsize Cluster, changing StatefulSet with higher Replicas, no Rebalacing")
+		methodLogger.Warn("Upsize Cluster, changing StatefulSet with higher Replicas, no Rebalacing")
 		p.util.UpsizeBrokerStS(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
@@ -178,11 +180,12 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		//TODO remove poor mans casting :P
 		//TODO support Downsizing Multiple Brokers
 		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
-		fmt.Println("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
+		methodLogger.Info("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
 
 		err := p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, spec.EMPTY_BROKER)
 		if err != nil {
 			//just re-try delete event
+			internalErrors.Inc()
 			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
@@ -190,6 +193,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		err = p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
 		if err != nil {
 			//just re-try delete event
+			internalErrors.Inc()
 			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
@@ -208,6 +212,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		//GET CLUSTER TO DELETE
 		toDelete, err := p.util.GetBrokersWithState(currentEvent.Cluster, spec.EMPTY_BROKER)
 		if err != nil {
+			internalErrors.Inc()
 			p.Sleep30AndSendEvent(currentEvent)
 		}
 		kafkaClient := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)]
@@ -222,18 +227,16 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			break
 		}
 		if err != nil {
+			internalErrors.Inc()
 			p.Sleep30AndSendEvent(currentEvent)
 		}
 		//CHECK if all Topics has been moved off
 		inSync, err := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].AllTopicsInSync()
 		if err != nil || !inSync {
+			internalErrors.Inc()
 			p.Sleep30AndSendEvent(currentEvent)
 			break
 		}
-
-		//states := p.util.GetPodAnnotations(currentEvent.Cluster)
-		//name := currentEvent.Cluster.Metadata.Namespace + "-" + currentEvent.Cluster.Metadata.Name
-		//p.kafkaClient[name].PrintFullStats()
 
 	}
 }
