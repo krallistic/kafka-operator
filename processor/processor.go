@@ -136,6 +136,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			Cluster: currentEvent.Cluster,
 			Type:    spec.KAKFA_EVENT,
 		}
+
 		methodLogger.Info("Init heartbeat type checking...")
 		p.Sleep30AndSendEvent(clusterEvent)
 		break
@@ -157,6 +158,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 			}
 			p.clusterEvents <- clusterEvent
 		}()
+		p.util.DeleteOffsetMonitor(currentEvent.Cluster)
 		clustersTotal.Dec()
 		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
@@ -173,7 +175,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		p.util.UpsizeBrokerStS(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
-		methodLogger.Warn("Unkown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
+		methodLogger.Warn("Unknown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
 		clustersModified.Inc()
 	case spec.DOWNSIZE_CLUSTER:
 		fmt.Println("Downsize Cluster")
@@ -309,5 +311,7 @@ func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
 	p.util.CreateDirectBrokerService(clusterSpec)
 
 	p.initKafkaClient(clusterSpec)
+
+	p.util.DeployOffsetMonitor(clusterSpec)
 
 }

@@ -5,14 +5,17 @@ import (
 	"github.com/krallistic/kafka-operator/spec"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
+
+	log "github.com/Sirupsen/logrus"
 
 	"k8s.io/client-go/pkg/api/v1"
 )
 
 const (
 	deplyomentPrefix      = "kafka-offset-checker"
-	offsetExporterImage   = "krallistic/kafka_offset_exporter" //TODO
-	offsetExporterVersion = "latest"                           //TODO make version cmd arg
+	offsetExporterImage   = "krallistic/kafka_exporter" //TODO
+	offsetExporterVersion = "v0.1.0"                    //TODO make version cmd arg
 
 	prometheusScrapeAnnotation = "prometheus.io/scrape"
 	prometheusPortAnnotation   = "prometheus.io/port"
@@ -29,21 +32,30 @@ func (c *ClientUtil) getOffsetMonitorName(cluster spec.KafkaCluster) string {
 
 // Deploys the OffsetMonitor as an extra Pod inside the Cluster
 func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
+	methodLogger := logger.WithFields(log.Fields{
+		"method":      "DeployOffsetMonitor",
+		"name":        cluster.Metadata.Name,
+		"namespace":   cluster.Metadata.Namespace,
+	})
+
 	deployment, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption)
 
 	if err != nil {
-		fmt.Println("error while talking to k8s api: ", err)
-		//TODO better error handling, global retry module?
-		return err
+		if !errors.IsNotFound(err) {
+			methodLogger.WithFields(log.Fields{
+				"error": err,
+			}).Error("Cant get Deployment INFO from API")
+			return err
+		}
 	}
 	if len(deployment.Name) == 0 {
 		//Deployment dosnt exist, creating new.
-		fmt.Println("Deployment dosnt exist, creating new")
+		methodLogger.Info("Deployment dosnt exist, creating new")
 		replicas := int32(1)
 
 		objectMeta := metav1.ObjectMeta{
 			Name: c.getOffsetMonitorName(cluster),
-			Annotations: map[string]string{
+			Labels: map[string]string{
 				"component": "kafka",
 				"name":      cluster.Metadata.Name,
 				"role":      "data",
@@ -54,13 +66,16 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 		podObjectMeta := metav1.ObjectMeta{
 			Name: c.getOffsetMonitorName(cluster),
 			Annotations: map[string]string{
+
+				prometheusScrapeAnnotation: metricsScrape,
+				prometheusPortAnnotation:   metricsPort,
+				prometheusPathAnnotation:   metricPath,
+			},
+			Labels: map[string]string{
 				"component": "kafka",
 				"name":      cluster.Metadata.Name,
 				"role":      "data",
 				"type":      "service",
-				prometheusScrapeAnnotation: metricsScrape,
-				prometheusPortAnnotation:   metricsPort,
-				prometheusPathAnnotation:   metricPath,
 			},
 		}
 		deploy := appsv1Beta1.Deployment{
@@ -72,7 +87,7 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							v1.Container{
-								Name:  "offfsetExporter",
+								Name:  "offset-exporter",
 								Image: offsetExporterImage + ":" + offsetExporterVersion,
 								Ports: []v1.ContainerPort{
 									v1.ContainerPort{
@@ -83,19 +98,19 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 								},
 								Env: []v1.EnvVar{
 									v1.EnvVar{
-										Name:  "cluster-name",
+										Name:  "CLUSTER_NAME",
 										Value: cluster.Metadata.Name,
 									},
 									v1.EnvVar{
-										Name:  "zookeeper-connect",
+										Name:  "ZOOKEEPER_CONNECT",
 										Value: cluster.Spec.ZookeeperConnect,
 									},
 									v1.EnvVar{
-										Name:  "listen-address",
-										Value: "8080",
+										Name:  "LISTEN_ADDRESS",
+										Value: ":8080",
 									},
 									v1.EnvVar{
-										Name:  "telemetry-path",
+										Name:  "TELEMETRY_PATH",
 										Value: "/metrics",
 									},
 								},

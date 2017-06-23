@@ -3,14 +3,10 @@ package util
 import (
 	"fmt"
 
-	//TODO cleanup dependencies
-	//"crypto/tls"
 	"github.com/krallistic/kafka-operator/spec"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	//"k8s.io/client-go/kubernetes"
-	//"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -20,8 +16,6 @@ import (
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	log "github.com/Sirupsen/logrus"
-	//	"k8s.io/client-go/tools/cache"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	"strconv"
 )
@@ -29,6 +23,7 @@ import (
 const (
 	tprName         = "kafka.operator.com"
 	tprEndpoint     = "/apis/extensions/v1beta1/thirdpartyresources"
+	//TODO move default Options to spec
 	defaultCPU      = "1"
 	defaultDisk     = "100G"
 	stateAnnotation = "kafka-cluster.incubator/state"
@@ -114,6 +109,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 	methodLogger.Info("Creating direkt broker SVCs")
 
 	for i := 0; i < int(brokerCount); i++ {
+
 		service_name := "broker-" + strconv.Itoa(i)
 		cluster_name := cluster.Metadata.Name
 
@@ -158,7 +154,7 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 						v1.ServicePort{
 							Name:     "broker",
 							Port:     9092,
-							NodePort: 30092,
+							//NodePort: 30920,
 						},
 					},
 				},
@@ -206,8 +202,9 @@ func (c *ClientUtil) GetReadyEndpoints(serviceName string, namespace string) []s
 		for i, address := range subset.Addresses {
 			retVal[i] = address.IP
 		}
+		return retVal
 	}
-	return make([]string, 0)
+	return nil
 }
 
 func (c *ClientUtil) GetPodAnnotations(cluster spec.KafkaCluster) error {
@@ -285,16 +282,27 @@ func (c *ClientUtil) SetBrokerState(cluster spec.KafkaCluster, brokerId int32, s
 //TODO refactor, into headless svc and direct svc
 func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless bool) error {
 	//Check if already exists?
+	methodLogger := logger.WithFields(log.Fields{
+		"method": "CreateBrokerService",
+		"headless": headless,
+	})
+	methodLogger = EnrichSpecWithLogger(methodLogger, cluster)
 	name := cluster.Metadata.Name
 	svc, err := c.KubernetesClient.Services(cluster.Metadata.Namespace).Get(name, c.DefaultOption)
 	if err != nil {
-		fmt.Println("error while talking to k8s api: ", err)
-		//TODO better error handling, global retry module?
-
+		if !errors.IsNotFound(err) {
+			methodLogger.WithFields(log.Fields{
+				"error": err,
+			}).Error("Cant get Service INFO from API")
+			return err
+		}
+		methodLogger.WithFields(log.Fields{
+			"error": err,
+		}).Error("Error while talking to k8s svc api")
 	}
 	if len(svc.Name) == 0 {
 		//Service dosnt exist, creating new.
-		fmt.Println("Service dosnt exist, creating new")
+		methodLogger.Info("Broker service dosnt exist, creating new")
 
 		objectMeta := metav1.ObjectMeta{
 			Name: name,
@@ -334,13 +342,15 @@ func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless boo
 		}
 		_, err := c.KubernetesClient.Services(cluster.Metadata.Namespace).Create(service)
 		if err != nil {
-			fmt.Println("Error while creating Service: ", err)
+			methodLogger.WithFields(log.Fields{
+				"error": err,
+			}).Error("Error while talking creating new service object for brokers")
+			return err
 		}
 		fmt.Println(service)
 	} else {
-		//Service exist
-		fmt.Println("Headless Broker SVC already exists: ", svc)
-		//TODO maybe check for correct service?
+		methodLogger.Info("Broker Service already exist, applying desired state")
+		//TODO refactor for only apply/create difference
 	}
 
 	return nil
@@ -395,6 +405,8 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 	name := cluster.Metadata.Name
 	replicas := cluster.Spec.BrokerCount
 	image := cluster.Spec.Image
+
+	storageClass := "standard"
 
 	//TODO error handling, default value?
 	cpus, err := resource.ParseQuantity(cluster.Spec.Resources.CPU)
@@ -556,7 +568,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 						Name:        "kafka-data",
 						Annotations: map[string]string{
 						//TODO make storageClass Optinal
-						//"volume.beta.kubernetes.io/storage-class": "anything",
+							"volume.beta.kubernetes.io/storage-class": storageClass,
 						},
 					},
 					Spec: v1.PersistentVolumeClaimSpec{
@@ -574,6 +586,51 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 		},
 	}
 	return statefulSet
+}
+
+
+//Creates PV if no dynamicProvisioner is aviable for that class
+//HostPath with statefulset need manuel creation of PV
+func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error {
+	methodLogger := logger.WithFields(log.Fields{
+		"method": "CreatePersistentVolumes",
+	})
+	methodLogger = EnrichSpecWithLogger(methodLogger, cluster)
+	methodLogger.Info("Creating PersistentVolumes")
+	for i := 0; i < int(cluster.Spec.BrokerCount); i++ {
+		methodLogger.Debug("Creating PV for Broker:", i)
+		//Check if pv already exist
+		//Create PV
+		pv :=  v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: cluster.Metadata.Name + "-" + strconv.Itoa(i),
+			},
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteOnce,
+				},
+				//Capacity: Reso
+
+			},
+		}
+		fmt.Println(pv)
+
+
+
+	}
+
+	return nil
+}
+
+
+func (c *ClientUtil) GenerateKafkaOptions(cluster spec.KafkaCluster) []v1.EnvVar{
+	options := make([]v1.EnvVar, 0)
+
+
+
+	return options
+
+
 }
 
 func (c *ClientUtil) UpsizeBrokerStS(cluster spec.KafkaCluster) error {
@@ -608,8 +665,8 @@ func (c *ClientUtil) UpdateBrokerImage(cluster spec.KafkaCluster) error {
 
 	return nil
 }
-
-func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error {
+//TODO delete
+func (c *ClientUtil) CreatePersistentVolumesTODODELETE(cluster spec.KafkaCluster) error {
 	fmt.Println("Creating Persistent Volumes for KafkaCluster")
 
 	pv, err := c.KubernetesClient.PersistentVolumes().Get("testpv-1", c.DefaultOption)
@@ -656,6 +713,7 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Get(cluster.Metadata.Name, c.DefaultOption) //Scaling Replicas down to Zero
 	if (len(statefulSet.Name) == 0) && (err != nil) {
 		fmt.Println("Error while getting StS from k8s: ", err)
+		return nil
 	}
 
 	var replicas int32
@@ -665,6 +723,7 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.KafkaCluster) error {
 	_, err = c.KubernetesClient.StatefulSets(cluster.Metadata.Namespace).Update(statefulSet)
 	if err != nil {
 		fmt.Println("Error while scaling down Broker Sts: ", err)
+		return err
 	}
 	//Delete Volumes
 	//TODO when volumes are implemented
