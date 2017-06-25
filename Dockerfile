@@ -1,10 +1,6 @@
-FROM golang:alpine
+FROM alpine:3.6
 MAINTAINER  Jakob Karalus <jakob.karalus@gnx.net>
 
+ADD bin/kafka_operator /bin/usr/sbin/kafka_operator
 
-#TODO move go build ouside docker, maybe full travis integration.
-RUN mkdir -p /go/src /go/bin && chmod -R 777 /go
-ADD . /go/src/github.com/krallistic/kafka-operator/
-WORKDIR /go/src/github.com/krallistic/kafka-operator/
-RUN go build -o operator cmd/operator/main.go
-CMD ["/go/src/github.com/krallistic/kafka-operator/operator"]
+CMD ["/bin/usr/sbin/kafka_operator"]
