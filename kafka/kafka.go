@@ -34,14 +34,6 @@ func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
 
 	methodLogger.Info("Creating KafkaUtil")
 
-	client, err := sarama.NewClient(brokerList, config)
-	if err != nil {
-		methodLogger.WithFields(log.Fields{
-			"error": err,
-		}).Error("Error creating sarama kafka Client")
-		return nil, err
-	}
-
 	kz, err := kazoo.NewKazooFromConnectionString(clusterSpec.Spec.ZookeeperConnect, nil)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
@@ -50,6 +42,26 @@ func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
 		}).Error("Cant create kazoo client")
 		return nil, err
 	}
+
+	brokers, err := kz.BrokerList()
+	if err != nil {
+		methodLogger.WithFields(log.Fields{
+			"error":            err,
+		}).Error("Error reading brokers from zk")
+		return nil, err
+	}
+
+	client, err := sarama.NewClient(brokers, config)
+	if err != nil {
+		methodLogger.WithFields(log.Fields{
+			"error": err,
+			"brokers": brokers,
+		}).Error("Error creating sarama kafka Client")
+		return nil, err
+	}
+
+
+
 
 	k := &KafkaUtil{
 		KafkaClient: client,
@@ -199,6 +211,7 @@ func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToD
 
 	//TODO it should be possible to Delete multiple Brokers
 	for _, topic := range topics {
+		//TODO what do in cases where ReplicationFactor > remaining broker count
 		k.RemoveTopicFromBrokers(cluster, brokerToDelete, topic)
 	}
 
