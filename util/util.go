@@ -26,6 +26,7 @@ const (
 	//TODO move default Options to spec
 	defaultCPU      = "1"
 	defaultDisk     = "100G"
+	defaultMemory = "4Gi"
 	stateAnnotation = "kafka-cluster.incubator/state"
 )
 
@@ -413,6 +414,22 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 	if err != nil {
 		cpus, _ = resource.ParseQuantity(defaultCPU)
 	}
+
+	memory, err := resource.ParseQuantity(cluster.Spec.Resources.Memory)
+	if err != nil {
+		memory, _ = resource.ParseQuantity(defaultMemory)
+	}
+
+	heapsize := int64(float64(memory.ScaledValue(resource.Mega)) * 0.6)
+	if heapsize > 4096 {
+		heapsize = 4096
+	}
+
+	maxHeap := resource.NewScaledQuantity(heapsize, resource.Mega)
+
+
+	fmt.Println(memory)
+
 	diskSpace, err := resource.ParseQuantity(cluster.Spec.Resources.DiskSpace)
 	if err != nil {
 		diskSpace, _ = resource.ParseQuantity(defaultDisk)
@@ -545,6 +562,10 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 									Name:  "KAFKA_ZOOKEEPER_CONNECT",
 									Value: cluster.Spec.ZookeeperConnect,
 								},
+								v1.EnvVar{
+									Name:  "KAFKA_HEAP_OPTS",
+									Value: "-Xmx" + maxHeap.String(),
+								},
 							},
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
@@ -556,6 +577,10 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{
 									v1.ResourceCPU: cpus,
+									v1.ResourceMemory: *maxHeap,
+								},
+								Limits: v1.ResourceList{
+									v1.ResourceMemory: memory,
 								},
 							},
 						},

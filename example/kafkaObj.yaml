@@ -3,8 +3,8 @@ kind: "KafkaCluster"
 metadata:
   name: hello-world-cluster-2
 spec:
-    brokerCount: 3
-    topics:
+    brokerCount: 2
+    managedTopics:
       - name: "test1"
         replicationFactor: 1
         partitions: 1
@@ -13,8 +13,12 @@ spec:
         partitions: 2
     kafkaOptions:
        logRetentionHours: 24
-       autoCreateTopics: false
+       autoCreateTopicsEnable: false
+       autoLeaderRebalanceEnable: true
+       backgroudThreads: 10
        compressionType: "gzip"
+       deleteTopicEnable: false
+       leaderImbalanceCheckIntervalSeconds: 300
     zookeeperConnect: zk-headless.default.svc.cluster.local
     image: confluentinc/cp-kafka:latest
     leaderImbalanceRatio: 0.1
@@ -24,6 +28,6 @@ spec:
     jmxSidecar: false
     resources:
       cpu: "0.1"
-      memory: "2Mi"
+      memory: "2Gi"
       diskSpace: "50G"
 
