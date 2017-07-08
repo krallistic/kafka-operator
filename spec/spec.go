@@ -9,6 +9,7 @@ import (
 	"fmt"
 )
 
+//Main API Object
 type KafkaCluster struct {
 	metav1.TypeMeta `json:",inline"`
 	Metadata        metav1.ObjectMeta `json:"metadata"`
@@ -17,6 +18,7 @@ type KafkaCluster struct {
 	Spec KafkaClusterSpec `json:"spec"`
 }
 
+// k8s API List Type
 type KafkaClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	Metadata        metav1.ListMeta `json:"metadata"`
@@ -271,44 +273,7 @@ type KafkaOptions struct {
 	ZookeeperSessionTimeoutMs *int32 `json:"zookeeperSessionTimeoutMs,omitempty"`
 }
 
-/*
-var (
-
-	defaultKafkaBrokerOptions = KafkaOptions{
-		AutoCreateTopicsEnable:              &false,
-		AutoLeaderRebalanceEnable:           &true,
-		BackgroundThreads:                   &int32(10),
-		CompressionType:                     &"gzip",
-		DeleteTopicEnable:                   &true,
-		LeaderImbalanceCheckIntervalSeconds: &int32(300),
-		LeaderImbalanceBrokerPercentage:     &int32(10),
-		LogFlushIntervalMessages:            &int64(9223372036854775807),
-		LogFlushIntervalMs:                  nil,
-		LogFlushOffsetCheckpointIntervalMs:  &int32(60000),
-		LogFlushSchedulerIntervalMs:         &int64(9223372036854775807),
-		LogRetentionBytes:                   &"-1",
-		LogRetentionHours:                   &int32(168),
-		LogRollHours:                        &int32(168),
-		LogRollJitterHours:                  &int32(0),
-		LogSegmentBytes:                     &int32(1073741824),
-		LogSegmentDeleteDelayMS:             &int64(60000),
-		MessagesMaxBytes:                    &int32(1000012),
-		MinInsyncReplicas:                   &int32(1),
-		NumIOThreads:                        &int32(8),
-		NumNetworkThreads:                   &int32(8),
-		NumRecoveryThreadsPerDataDir:        &int32(1),
-		NumReplicaFetchers:                  &int32(1),
-		OffsetMetadataMaxBytes:              &int32(4096),
-		OffsetCommitTimeoutMs:               &int32(5000),
-		OffsetLoadBufferSize:                &int32(5242880),
-		OffsetRetentionCheckIntervalMs:      &int64(600000),
-		OffsetRetentionMinutes:              &int32(1440),
-		OffsetTopicNumPartitions:            &int32(50),
-	}
-
-)
-*/
-
+//ReassigmentConfig
 type KafkaReassignmentConfig struct {
 	Partition []KafkaPartition `json:"partition"`
 	Version   string           `json:"version"`

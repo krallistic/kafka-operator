@@ -15,18 +15,19 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
+	"strconv"
+
 	log "github.com/Sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"strconv"
 )
 
 const (
-	tprName         = "kafka.operator.com"
-	tprEndpoint     = "/apis/extensions/v1beta1/thirdpartyresources"
+	tprName     = "kafka.operator.com"
+	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
 	//TODO move default Options to spec
 	defaultCPU      = "1"
 	defaultDisk     = "100G"
-	defaultMemory = "4Gi"
+	defaultMemory   = "4Gi"
 	stateAnnotation = "kafka-cluster.incubator/state"
 )
 
@@ -153,8 +154,8 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.KafkaCluster) error 
 					},
 					Ports: []v1.ServicePort{
 						v1.ServicePort{
-							Name:     "broker",
-							Port:     9092,
+							Name: "broker",
+							Port: 9092,
 							//NodePort: 30920,
 						},
 					},
@@ -284,7 +285,7 @@ func (c *ClientUtil) SetBrokerState(cluster spec.KafkaCluster, brokerId int32, s
 func (c *ClientUtil) CreateBrokerService(cluster spec.KafkaCluster, headless bool) error {
 	//Check if already exists?
 	methodLogger := logger.WithFields(log.Fields{
-		"method": "CreateBrokerService",
+		"method":   "CreateBrokerService",
 		"headless": headless,
 	})
 	methodLogger = EnrichSpecWithLogger(methodLogger, cluster)
@@ -425,9 +426,6 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 		heapsize = 4096
 	}
 
-	maxHeap := resource.NewScaledQuantity(heapsize, resource.Mega)
-
-
 	fmt.Println(memory)
 
 	diskSpace, err := resource.ParseQuantity(cluster.Spec.Resources.DiskSpace)
@@ -435,12 +433,14 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 		diskSpace, _ = resource.ParseQuantity(defaultDisk)
 	}
 
+	options := c.GenerateKafkaOptions(cluster)
+
 	statefulSet := &appsv1Beta1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
 				"component": "kafka",
-				"creator":   "kafkaOperator",
+				"creator":   "kafka-operator",
 				"role":      "data",
 				"name":      name,
 			},
@@ -453,7 +453,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"component": "kafka",
-						"creator":   "kafkaOperator",
+						"creator":   "kafka-operator",
 						"role":      "data",
 						"name":      name,
 					},
@@ -468,11 +468,11 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 										Namespaces: []string{cluster.Metadata.Namespace},
 										LabelSelector: &metav1.LabelSelector{
 											MatchLabels: map[string]string{
-												"creator": "kafkaOperator",
+												"creator": "kafka-operator",
 												"name":    name,
 											},
 										},
-										TopologyKey: "kubernetes.io/hostname", //TODO topologieKey defined somehwere in k8s?
+										TopologyKey: "kubernetes.io/hostname", //sfddfsTODO topologieKey defined somehwere in k8s?
 									},
 								},
 							},
@@ -549,24 +549,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n"+
 									"/etc/confluent/docker/run", name),
 							},
-							Env: []v1.EnvVar{
-								v1.EnvVar{
-									Name: "NAMESPACE",
-									ValueFrom: &v1.EnvVarSource{
-										FieldRef: &v1.ObjectFieldSelector{
-											FieldPath: "metadata.namespace",
-										},
-									},
-								},
-								v1.EnvVar{
-									Name:  "KAFKA_ZOOKEEPER_CONNECT",
-									Value: cluster.Spec.ZookeeperConnect,
-								},
-								v1.EnvVar{
-									Name:  "KAFKA_HEAP_OPTS",
-									Value: "-Xmx" + maxHeap.String(),
-								},
-							},
+							Env: options,
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
 									Name: "kafka",
@@ -576,8 +559,8 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 							},
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{
-									v1.ResourceCPU: cpus,
-									v1.ResourceMemory: *maxHeap,
+									v1.ResourceCPU:    cpus,
+									v1.ResourceMemory: *c.GetMaxHeap(cluster),
 								},
 								Limits: v1.ResourceList{
 									v1.ResourceMemory: memory,
@@ -590,9 +573,9 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
 				v1.PersistentVolumeClaim{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        "kafka-data",
+						Name: "kafka-data",
 						Annotations: map[string]string{
-						//TODO make storageClass Optinal
+							//TODO make storageClass Optinal
 							"volume.beta.kubernetes.io/storage-class": storageClass,
 						},
 					},
@@ -613,7 +596,6 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.KafkaCluster) *appsv1Beta1.S
 	return statefulSet
 }
 
-
 //Creates PV if no dynamicProvisioner is aviable for that class
 //HostPath with statefulset need manuel creation of PV
 func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error {
@@ -626,7 +608,7 @@ func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error {
 		methodLogger.Debug("Creating PV for Broker:", i)
 		//Check if pv already exist
 		//Create PV
-		pv :=  v1.PersistentVolume{
+		pv := v1.PersistentVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: cluster.Metadata.Name + "-" + strconv.Itoa(i),
 			},
@@ -640,22 +622,9 @@ func (c *ClientUtil) CreatePersistentVolumes(cluster spec.KafkaCluster) error {
 		}
 		fmt.Println(pv)
 
-
-
 	}
 
 	return nil
-}
-
-
-func (c *ClientUtil) GenerateKafkaOptions(cluster spec.KafkaCluster) []v1.EnvVar{
-	options := make([]v1.EnvVar, 0)
-
-
-
-	return options
-
-
 }
 
 func (c *ClientUtil) UpsizeBrokerStS(cluster spec.KafkaCluster) error {
@@ -690,6 +659,7 @@ func (c *ClientUtil) UpdateBrokerImage(cluster spec.KafkaCluster) error {
 
 	return nil
 }
+
 //TODO delete
 func (c *ClientUtil) CreatePersistentVolumesTODODELETE(cluster spec.KafkaCluster) error {
 	fmt.Println("Creating Persistent Volumes for KafkaCluster")
