@@ -49,7 +49,7 @@ func ReflectOptionsStruct(v interface{}) []v1.EnvVar {
 	return options
 }
 
-func (c *ClientUtil) GetMaxHeap(cluster spec.KafkaCluster) *resource.Quantity {
+func (c *ClientUtil) GetMaxHeap(cluster spec.Kafkacluster) *resource.Quantity {
 	memory, err := resource.ParseQuantity(cluster.Spec.Resources.Memory)
 	if err != nil {
 		memory, _ = resource.ParseQuantity(defaultMemory)
@@ -64,11 +64,11 @@ func (c *ClientUtil) GetMaxHeap(cluster spec.KafkaCluster) *resource.Quantity {
 	return maxHeap
 }
 
-func (c *ClientUtil) GetMaxHeapJavaString(cluster spec.KafkaCluster) string {
+func (c *ClientUtil) GetMaxHeapJavaString(cluster spec.Kafkacluster) string {
 	return "-Xmx" + c.GetMaxHeap(cluster).String()
 }
 
-func (c *ClientUtil) GenerateKafkaOptions(cluster spec.KafkaCluster) []v1.EnvVar {
+func (c *ClientUtil) GenerateKafkaOptions(cluster spec.Kafkacluster) []v1.EnvVar {
 	kafkaOptions := cluster.Spec.KafkaOptions
 
 	structOptions := ReflectOptionsStruct(kafkaOptions)

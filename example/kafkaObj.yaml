@@ -1,5 +1,5 @@
-apiVersion: "incubator.test.com/v1"
-kind: "KafkaCluster"
+apiVersion: "krallistic.github.com/v1"
+kind: "Kafkacluster"
 metadata:
   name: hello-world-cluster-2
 spec:

@@ -2,10 +2,11 @@ package util
 
 import (
 	"fmt"
+
 	"github.com/krallistic/kafka-operator/spec"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -26,16 +27,16 @@ const (
 	metricsScrape = "true"
 )
 
-func (c *ClientUtil) getOffsetMonitorName(cluster spec.KafkaCluster) string {
+func (c *ClientUtil) getOffsetMonitorName(cluster spec.Kafkacluster) string {
 	return deplyomentPrefix + "-" + cluster.Metadata.Name
 }
 
 // Deploys the OffsetMonitor as an extra Pod inside the Cluster
-func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
+func (c *ClientUtil) DeployOffsetMonitor(cluster spec.Kafkacluster) error {
 	methodLogger := logger.WithFields(log.Fields{
-		"method":      "DeployOffsetMonitor",
-		"name":        cluster.Metadata.Name,
-		"namespace":   cluster.Metadata.Namespace,
+		"method":    "DeployOffsetMonitor",
+		"name":      cluster.Metadata.Name,
+		"namespace": cluster.Metadata.Namespace,
 	})
 
 	deployment, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption)
@@ -137,7 +138,7 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.KafkaCluster) error {
 //Deletes the offset checker for the given kafka cluster.
 // Return error if any problems occurs. (Except if monitor dosnt exist)
 //
-func (c *ClientUtil) DeleteOffsetMonitor(cluster spec.KafkaCluster) error {
+func (c *ClientUtil) DeleteOffsetMonitor(cluster spec.Kafkacluster) error {
 	var gracePeriod int64
 	gracePeriod = 10
 

@@ -1,38 +1,35 @@
 package spec
 
 import (
-	"encoding/json"
+	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"fmt"
 )
 
 //Main API Object
-type KafkaCluster struct {
+type Kafkacluster struct {
 	metav1.TypeMeta `json:",inline"`
 	Metadata        metav1.ObjectMeta `json:"metadata"`
-	//APIVersion string `json:"apiVersion"`
-	//Kind string `json:"kind"`
-	Spec KafkaClusterSpec `json:"spec"`
+
+	Spec KafkaclusterSpec `json:"spec"`
 }
 
 // k8s API List Type
-type KafkaClusterList struct {
+type KafkaclusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	Metadata        metav1.ListMeta `json:"metadata"`
 
-	Items []KafkaCluster `json:"items"`
+	Items []Kafkacluster `json:"items"`
 }
 
-type KafkaClusterSpec struct {
+type KafkaclusterSpec struct {
 	//Amount of Broker Nodes
 	Image            string            `json:"image"`
 	BrokerCount      int32             `json:"brokerCount"`
 	Resources        ResourceSpec      `json:"resources"`
 	KafkaOptions     KafkaOptions      `json:"kafkaOptions"`
-	jmxSidecar       bool              `json:"jmxSidecar"`
+	JmxSidecar       bool              `json:"jmxSidecar"`
 	Topics           []KafkaTopicSpec  `json:"topics"`
 	ZookeeperConnect string            `json:"zookeeperConnect"`
 	NodeSelector     map[string]string `json:"nodeSelector,omitempty"`
@@ -66,10 +63,10 @@ type KafkaTopicSpec struct {
 	ReplicationFactor int32  `json:"replicationFactor"`
 }
 
-type KafkaClusterWatchEvent struct {
+type KafkaclusterWatchEvent struct {
 	Type      string       `json:"type"`
-	Object    KafkaCluster `json:"object"`
-	OldObject KafkaCluster `json:"oldObject"`
+	Object    Kafkacluster `json:"object"`
+	OldObject Kafkacluster `json:"oldObject"`
 }
 
 type KafkaOption struct {
@@ -292,10 +289,10 @@ type KafkaTopic struct {
 }
 
 //No json needed since internal Event type.
-type KafkaClusterEvent struct {
+type KafkaclusterEvent struct {
 	Type       KafkaEventType
-	Cluster    KafkaCluster
-	OldCluster KafkaCluster
+	Cluster    Kafkacluster
+	OldCluster Kafkacluster
 }
 
 type KafkaEventType int32
@@ -326,28 +323,28 @@ const (
 	NORMAL_STATE     KafkaBrokerState = "NORMAL"
 )
 
-// convenience functions
-func PrintCluster(cluster *KafkaCluster) string {
+//convenience functions
+func PrintCluster(cluster *Kafkacluster) string {
 	return fmt.Sprintf("%s/%s, APIVersion: %s, Kind: %s, Value: %#v", cluster.Metadata.Namespace, cluster.Metadata.Name, cluster.APIVersion, cluster.Kind, cluster)
 }
 
 // Required to satisfy Object interface
-func (e *KafkaCluster) GetObjectKind() schema.ObjectKind {
+func (e *Kafkacluster) GetObjectKind() schema.ObjectKind {
 	return &e.TypeMeta
 }
 
 // Required to satisfy ObjectMetaAccessor interface
-func (e *KafkaCluster) GetObjectMeta() metav1.Object {
+func (e *Kafkacluster) GetObjectMeta() metav1.Object {
 	return &e.Metadata
 }
 
 // Required to satisfy Object interface
-func (el *KafkaClusterList) GetObjectKind() schema.ObjectKind {
+func (el *KafkaclusterList) GetObjectKind() schema.ObjectKind {
 	return &el.TypeMeta
 }
 
 // Required to satisfy ListMetaAccessor interface
-func (el *KafkaClusterList) GetListMeta() metav1.List {
+func (el *KafkaclusterList) GetListMeta() metav1.List {
 	return &el.Metadata
 }
 
@@ -356,27 +353,27 @@ func (el *KafkaClusterList) GetListMeta() metav1.List {
 // resources and ugorji. If/when these issues are resolved, the code below
 // should no longer be required.
 
-type KafkaClusterListCopy KafkaClusterList
-type KafkaClusterCopy KafkaCluster
+// type KafkaclusterListCopy KafkaclusterList
+// type KafkaclusterCopy Kafkacluster
 
-func (e *KafkaCluster) UnmarshalJSON(data []byte) error {
-	tmp := KafkaClusterCopy{}
-	err := json.Unmarshal(data, &tmp)
-	if err != nil {
-		return err
-	}
-	tmp2 := KafkaCluster(tmp)
-	*e = tmp2
-	return nil
-}
+// func (e *Kafkacluster) UnmarshalJSON(data []byte) error {
+// 	tmp := KafkaclusterCopy{}
+// 	err := json.Unmarshal(data, &tmp)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	tmp2 := Kafkacluster(tmp)
+// 	*e = tmp2
+// 	return nil
+// }
 
-func (el *KafkaClusterList) UnmarshalJSON(data []byte) error {
-	tmp := KafkaClusterListCopy{}
-	err := json.Unmarshal(data, &tmp)
-	if err != nil {
-		return err
-	}
-	tmp2 := KafkaClusterList(tmp)
-	*el = tmp2
-	return nil
-}
+// func (el *KafkaclusterList) UnmarshalJSON(data []byte) error {
+// 	tmp := KafkaclusterListCopy{}
+// 	err := json.Unmarshal(data, &tmp)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	tmp2 := KafkaclusterList(tmp)
+// 	*el = tmp2
+// 	return nil
+// }

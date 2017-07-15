@@ -3,6 +3,9 @@
         "github.com/Shopify/sarama": {
             "branch": "master"
         },
+        "github.com/azer/snakecase": {
+            "branch": "master"
+        },
         "github.com/pkg/errors": {
             "version": ">=0.8.0, <1.0.0"
         },
@@ -12,11 +15,11 @@
         "github.com/sirupsen/logrus": {
             "version": "==v0.11.5"
         },
-        "k8s.io/apimachinery": {
-            "branch": "release-1.6"
+        "k8s.io/apiextensions-apiserver": {
+            "branch": "master"
         },
         "k8s.io/client-go": {
-            "version": "^3.0.0-beta.0"
+            "branch": "release-4.0"
         }
     }
 }

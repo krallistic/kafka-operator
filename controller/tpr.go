@@ -1,25 +1,30 @@
 package controller
 
 import (
+	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/krallistic/kafka-operator/spec"
 	"github.com/krallistic/kafka-operator/util"
 
 	log "github.com/Sirupsen/logrus"
 
-	"k8s.io/client-go/kubernetes/scheme"
-
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	//"k8s.io/client-go/kubernetes"
 	//"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
+
 	"k8s.io/client-go/rest"
 
-	k8sclient "k8s.io/client-go/kubernetes"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+
 	"k8s.io/client-go/pkg/api/v1"
+
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -32,70 +37,70 @@ var (
 )
 
 const (
-	tprShortName = "kafka-cluster"
-	tprSuffix    = "incubator.test.com"
-	tprFullName  = tprShortName + "." + tprSuffix
-	//API Name is used in the watch of the API, it defined as tprShorName, removal of -, and suffix s
-	tprApiName = "kafkaclusters"
-	tprVersion = "v1"
+//tprShortName = "kafka-cluster"
+//tprSuffix    = "incubator.test.com"
+//tprFullName  = tprShortName + "." + tprSuffix
+//API Name is used in the watch of the API, it defined as tprShorName, removal of -, and suffix s
+//tprApiName = "kafkaclusters"
+//tprVersion = "v1"
+
 )
 
-type ThirdPartyResourceController struct {
-	KubernetesClient *k8sclient.Clientset
-	DefaultOption    metav1.GetOptions
-	tprClient        *rest.RESTClient
+type CustomResourceController struct {
+	ApiExtensionsClient *apiextensionsclient.Clientset
+	DefaultOption       metav1.GetOptions
+	crdClient           *rest.RESTClient
 }
 
-func New(kubeConfigFile, masterHost string) (*ThirdPartyResourceController, error) {
+func New(kubeConfigFile, masterHost string) (*CustomResourceController, error) {
 	methodLogger := logger.WithFields(log.Fields{"method": "New"})
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := util.BuildConfig(kubeConfigFile)
 
-	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
-	client, err := k8sclient.NewForConfig(config)
+	apiextensionsclientset, err := apiextensionsclient.NewForConfig(config)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
 			"error":  err,
 			"config": config,
-			"client": client,
+			"client": apiextensionsclientset,
 		}).Error("could not init Kubernetes client")
 		return nil, err
 	}
 
-	tprClient, err := newTPRClient(config)
+	crdClient, err := newCRDClient(config)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
 			"Error":  err,
-			"Client": tprClient,
+			"Client": crdClient,
 			"Config": config,
-		}).Error("Could not initialize ThirdPartyRessource KafkaCluster cLient")
+		}).Error("Could not initialize CustomResourceDefinition Kafkacluster cLient")
 		return nil, err
 	}
 
-	k := &ThirdPartyResourceController{
-		tprClient:        tprClient,
-		KubernetesClient: client,
+	k := &CustomResourceController{
+		crdClient:           crdClient,
+		ApiExtensionsClient: apiextensionsclientset,
 	}
-	methodLogger.Info("Initilized ThirdPartyRessource KafkaCluster cLient")
+	methodLogger.Info("Initilized CustomResourceDefinition Kafkacluster cLient")
 
 	return k, nil
 }
 
-func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
+func (*CustomResourceController) Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaclusterWatchEvent, signalChannel chan int) {
 	methodLogger := logger.WithFields(log.Fields{"method": "Watch"})
 
 	stop := make(chan struct{}, 1)
 	source := cache.NewListWatchFromClient(
 		client,
-		tprApiName,
+		spec.CRDRessourcePlural,
 		v1.NamespaceAll,
 		fields.Everything())
 
 	store, controller := cache.NewInformer(
 		source,
 
-		&spec.KafkaCluster{},
+		&spec.Kafkacluster{},
 
 		// resyncPeriod
 		// Every resyncPeriod, all resources in the cache will retrigger events.
@@ -104,9 +109,9 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				cluster := obj.(*spec.KafkaCluster)
+				cluster := obj.(*spec.Kafkacluster)
 				methodLogger.WithFields(log.Fields{"watchFunction": "ADDED"}).Info(spec.PrintCluster(cluster))
-				var event spec.KafkaClusterWatchEvent
+				var event spec.KafkaclusterWatchEvent
 				//TODO
 				event.Type = "ADDED"
 				event.Object = *cluster
@@ -114,14 +119,14 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 			},
 
 			UpdateFunc: func(old, new interface{}) {
-				oldCluster := old.(*spec.KafkaCluster)
-				newCluster := new.(*spec.KafkaCluster)
+				oldCluster := old.(*spec.Kafkacluster)
+				newCluster := new.(*spec.Kafkacluster)
 				methodLogger.WithFields(log.Fields{
 					"eventType": "UPDATED",
 					"old":       spec.PrintCluster(oldCluster),
 					"new":       spec.PrintCluster(newCluster),
 				}).Debug("Recieved Update Event")
-				var event spec.KafkaClusterWatchEvent
+				var event spec.KafkaclusterWatchEvent
 				//TODO refactor this. use old/new in EventChannel
 				event.Type = "UPDATED"
 				event.Object = *newCluster
@@ -130,8 +135,8 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 			},
 
 			DeleteFunc: func(obj interface{}) {
-				cluster := obj.(*spec.KafkaCluster)
-				var event spec.KafkaClusterWatchEvent
+				cluster := obj.(*spec.Kafkacluster)
+				var event spec.KafkaclusterWatchEvent
 				event.Type = "DELETED"
 				event.Object = *cluster
 				eventsChannel <- event
@@ -151,85 +156,139 @@ func (*ThirdPartyResourceController) Watch(client *rest.RESTClient, eventsChanne
 	}()
 }
 
-func (c *ThirdPartyResourceController) MonitorKafkaEvents(eventsChannel chan spec.KafkaClusterWatchEvent, signalChannel chan int) {
+func (c *CustomResourceController) MonitorKafkaEvents(eventsChannel chan spec.KafkaclusterWatchEvent, signalChannel chan int) {
 	methodLogger := logger.WithFields(log.Fields{"method": "MonitorKafkaEvents"})
 	methodLogger.Info("Starting Watch")
-	c.Watch(c.tprClient, eventsChannel, signalChannel)
+	c.Watch(c.crdClient, eventsChannel, signalChannel)
 }
 
-func configureClient(config *rest.Config) {
-	groupversion := schema.GroupVersion{
-		Group:   tprSuffix,
-		Version: tprVersion,
+func configureConfig(cfg *rest.Config) error {
+	scheme := runtime.NewScheme()
+
+	if err := spec.AddToScheme(scheme); err != nil {
+		return err
 	}
 
-	config.GroupVersion = &groupversion
-	config.APIPath = "/apis"
-	config.ContentType = runtime.ContentTypeJSON
-	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+	cfg.GroupVersion = &spec.SchemeGroupVersion
+	cfg.APIPath = "/apis"
+	cfg.ContentType = runtime.ContentTypeJSON
+	cfg.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
 
-	schemeBuilder := runtime.NewSchemeBuilder(
-		func(scheme *runtime.Scheme) error {
-			scheme.AddKnownTypes(
-				groupversion,
-				&spec.KafkaCluster{},
-				&spec.KafkaClusterList{},
-			)
-			return nil
-		})
-	metav1.AddToGroupVersion(scheme.Scheme, groupversion)
-	schemeBuilder.AddToScheme(scheme.Scheme)
+	return nil
 }
 
-func newTPRClient(config *rest.Config) (*rest.RESTClient, error) {
+func newCRDClient(config *rest.Config) (*rest.RESTClient, error) {
 
-	var tprconfig *rest.Config
-	tprconfig = config
-	configureClient(tprconfig)
+	var cdrconfig *rest.Config
+	cdrconfig = config
+	configureConfig(cdrconfig)
 
-	tprclient, err := rest.RESTClientFor(tprconfig)
+	crdClient, err := rest.RESTClientFor(cdrconfig)
 	if err != nil {
 		panic(err)
 	}
 
-	return tprclient, nil
+	return crdClient, nil
 }
 
-/// Create a the thirdparty ressource inside the Kubernetes Cluster
-func (c *ThirdPartyResourceController) CreateKubernetesThirdPartyResource() error {
-	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource"})
-	tpr, err := c.KubernetesClient.ExtensionsV1beta1Client.ThirdPartyResources().Get(tprFullName, c.DefaultOption)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			methodLogger.WithFields(log.Fields{}).Info("No existing KafkaCluster TPR found, creating")
+func (c *CustomResourceController) CreateCustomResourceDefinition() (*apiextensionsv1beta1.CustomResourceDefinition, error) {
+	methodLogger := logger.WithFields(log.Fields{"method": "CreateCustomResourceDefinition"})
 
-			tpr := &v1beta1.ThirdPartyResource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: tprFullName,
-				},
-				Versions: []v1beta1.APIVersion{
-					{Name: tprVersion},
-				},
-				Description: "Managed Apache Kafka clusters",
-			}
-			retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
-			if err != nil {
-				methodLogger.WithFields(log.Fields{"response": err}).Error("Error creating ThirdPartyRessource KafkaCluster")
-				panic(err)
-			}
-			methodLogger.WithFields(log.Fields{"response": retVal}).Info("Created KafkaCluster TPR")
-		}
-	} else {
-		methodLogger.Info("ThirdPartyRessource KafkaCluster already exist", tpr)
+	crd := &apiextensionsv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: spec.CRDFullName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   spec.CRDGroupName,
+			Version: spec.CRDVersion,
+			Scope:   apiextensionsv1beta1.NamespaceScoped,
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural: spec.CRDRessourcePlural,
+				Kind:   reflect.TypeOf(spec.Kafkacluster{}).Name(),
+			},
+		},
 	}
-	return nil
+	_, err := c.ApiExtensionsClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	if err != nil {
+		methodLogger.WithFields(log.Fields{
+			"error": err,
+			"crd":   crd,
+		}).Error("Error while creating CRD")
+		return nil, err
+	}
+
+	// wait for CRD being established
+	methodLogger.Debug("Created CRD, wating till its established")
+	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+		crd, err = c.ApiExtensionsClient.ApiextensionsV1beta1().CustomResourceDefinitions().Get(spec.CRDFullName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, cond := range crd.Status.Conditions {
+			switch cond.Type {
+			case apiextensionsv1beta1.Established:
+				if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					return true, err
+				}
+			case apiextensionsv1beta1.NamesAccepted:
+				if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					fmt.Printf("Name conflict: %v\n", cond.Reason)
+					methodLogger.WithFields(log.Fields{
+						"error":  err,
+						"crd":    crd,
+						"reason": cond.Reason,
+					}).Error("Naming Conflict with created CRD")
+				}
+			}
+		}
+		return false, err
+	})
+	if err != nil {
+		deleteErr := c.ApiExtensionsClient.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(spec.CRDFullName, nil)
+		if deleteErr != nil {
+			return nil, errors.NewAggregate([]error{err, deleteErr})
+		}
+		return nil, err
+	}
+	return crd, nil
 }
 
-func (c *ThirdPartyResourceController) GetKafkaClusters() ([]spec.KafkaCluster, error) {
+// /// Create a the thirdparty ressource inside the Kubernetes Cluster
+// func (c *CustomResourceController) CreateKubernetesThirdPartyResource() error {
+// 	methodLogger := logger.WithFields(log.Fields{"method": "CreateKubernetesThirdPartyResource"})
+// 	tpr, err := c.KubernetesClient.ExtensionsV1beta1Client.ThirdPartyResources().Get(tprFullName, c.DefaultOption)
+// 	if err != nil {
+// 		//if errors.IsNotFound(err) {
+// 		if err != nil {
+// 			methodLogger.WithFields(log.Fields{}).Info("No existing KafkaCluster TPR found, creating")
+
+// 			tpr := &v1beta1.ThirdPartyResource{
+// 				ObjectMeta: metav1.ObjectMeta{
+// 					Name: tprFullName,
+// 				},
+// 				Versions: []v1beta1.APIVersion{
+// 					{Name: tprVersion},
+// 				},
+// 				Description: "Managed Apache Kafka clusters",
+// 			}
+// 			retVal, err := c.KubernetesClient.ThirdPartyResources().Create(tpr)
+// 			if err != nil {
+// 				methodLogger.WithFields(log.Fields{"response": err}).Error("Error creating ThirdPartyRessource KafkaCluster")
+// 				panic(err)
+// 			}
+// 			methodLogger.WithFields(log.Fields{"response": retVal}).Info("Created KafkaCluster TPR")
+// 		}
+// 	} else {
+// 		methodLogger.Info("ThirdPartyRessource KafkaCluster already exist", tpr)
+// 	}
+// 	return nil
+// }
+
+func (c *CustomResourceController) GetKafkaClusters() ([]spec.Kafkacluster, error) {
 	methodLogger := logger.WithFields(log.Fields{"method": "GetKafkaClusters"})
 
-	exampleList := spec.KafkaClusterList{}
-	err := c.tprClient.Get().Resource(tprApiName).Do().Into(&exampleList)
+	exampleList := spec.KafkaclusterList{}
+	err := c.crdClient.Get().Resource(spec.CRDRessourcePlural).Do().Into(&exampleList)
 
 	if err != nil {
 		methodLogger.WithFields(log.Fields{

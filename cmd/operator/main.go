@@ -7,8 +7,9 @@ import (
 	"os"
 	"syscall"
 
-	log "github.com/Sirupsen/logrus"
 	"net/http"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -59,6 +60,25 @@ func Main() int {
 		logger.WithFields(log.Fields{"version": version}).Print("Operator Version")
 		return 0
 	}
+
+	//Creating osSignals first so we can exit at any time.
+	osSignals := make(chan os.Signal, 2)
+	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL, os.Interrupt)
+
+	controlChannel := make(chan int, 2) //TODO allows more finegranular Object? maybe a Struct? Replace with just osSignals?
+
+	go func() {
+		for {
+			select {
+			case sig := <-osSignals:
+				logger.WithFields(log.Fields{"signal": sig}).Info("Got Signal from OS shutting Down: ")
+				controlChannel <- 1
+				//TODO Cleanup
+				os.Exit(1)
+			}
+		}
+	}()
+
 	k8sclient, err := util.New(kubeConfigFile, masterHost)
 	if err != nil {
 		logger.WithFields(log.Fields{
@@ -69,7 +89,7 @@ func Main() int {
 		return 1
 	}
 
-	tprClient, err := controller.New(kubeConfigFile, masterHost)
+	cdrClient, err := controller.New(kubeConfigFile, masterHost)
 	if err != nil {
 		logger.WithFields(log.Fields{
 			"error":      err,
@@ -79,28 +99,15 @@ func Main() int {
 		return 1
 	}
 
-	tprClient.CreateKubernetesThirdPartyResource()
+	cdrClient.CreateCustomResourceDefinition()
 	//TODO wait till TPR really exist
-	controlChannel := make(chan int) //TODO allows more finegranular Object? maybe a Struct?
 
-	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *tprClient, controlChannel)
+	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *cdrClient, controlChannel)
 	processor.Run()
 
-	osSignals := make(chan os.Signal, 1)
-	signal.Notify(osSignals, syscall.SIGINT, syscall.SIGKILL)
-
 	http.Handle(metricListenPath, promhttp.Handler())
+	//Blocking ListenAndServer, so we dont exit
 	logger.Fatal(http.ListenAndServe(metricListenAddress, nil))
-
-runningLoop:
-	for {
-		select {
-		case sig := <-osSignals:
-			logger.WithFields(log.Fields{"signal": sig}).Info("Got Signal from OS shutting Down: ")
-			break runningLoop
-		}
-	}
-
 	logger.Info("Exiting now")
 	//TODO Eventually cleanup?
 

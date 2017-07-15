@@ -15,8 +15,8 @@ func TestGenerateKafkaOptions(t *testing.T) {
 
 	topicsCreate := true
 	logRetentionBytes := "testLogRetentionTime"
-	testClusterSpec := spec.KafkaCluster{
-		Spec: spec.KafkaClusterSpec{
+	testClusterSpec := spec.Kafkacluster{
+		Spec: spec.KafkaclusterSpec{
 
 			KafkaOptions: spec.KafkaOptions{
 				AutoCreateTopicsEnable: &topicsCreate,

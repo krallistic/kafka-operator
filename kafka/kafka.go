@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"fmt"
+
 	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
 	"github.com/krallistic/kafka-operator/spec"
@@ -22,7 +23,7 @@ type KafkaUtil struct {
 	KazooClient *kazoo.Kazoo
 }
 
-func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
+func New(clusterSpec spec.Kafkacluster) (*KafkaUtil, error) {
 	brokerList := util.GetBrokerAdressess(clusterSpec)
 
 	methodLogger := log.WithFields(log.Fields{
@@ -46,7 +47,7 @@ func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
 	brokers, err := kz.BrokerList()
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
-			"error":            err,
+			"error": err,
 		}).Error("Error reading brokers from zk")
 		return nil, err
 	}
@@ -54,14 +55,11 @@ func New(clusterSpec spec.KafkaCluster) (*KafkaUtil, error) {
 	client, err := sarama.NewClient(brokers, config)
 	if err != nil {
 		methodLogger.WithFields(log.Fields{
-			"error": err,
+			"error":   err,
 			"brokers": brokers,
 		}).Error("Error creating sarama kafka Client")
 		return nil, err
 	}
-
-
-
 
 	k := &KafkaUtil{
 		KafkaClient: client,
@@ -112,7 +110,7 @@ func (k *KafkaUtil) PrintFullStats() error {
 	return nil
 }
 
-func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.KafkaCluster, brokerId int32) ([]string, error) {
+func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.Kafkacluster, brokerId int32) ([]string, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GetTopicsOnBroker",
 		"clusterName": cluster.Metadata.Name,
@@ -140,7 +138,7 @@ func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.KafkaCluster, brokerId int32)
 	return topicOnBroker, nil
 }
 
-func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.KafkaTopic, error) {
+func (k *KafkaUtil) GetTopicConfiguration(cluster spec.Kafkacluster) ([]spec.KafkaTopic, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GetTopicConfiguration",
 		"clusterName": cluster.Metadata.Name,
@@ -180,7 +178,7 @@ func (k *KafkaUtil) GetTopicConfiguration(cluster spec.KafkaCluster) ([]spec.Kaf
 	return configuration, nil
 }
 
-func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32, topic string) error {
+func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.Kafkacluster, brokerToDelete int32, topic string) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":        "RemoveTopicFromBrokers",
 		"clusterName":   cluster.Metadata.Name,
@@ -197,7 +195,7 @@ func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.KafkaCluster, brokerToDe
 	return nil
 }
 
-func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.KafkaCluster, brokerToDelete int32) error {
+func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.Kafkacluster, brokerToDelete int32) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":        "RemoveTopicsFromBrokers",
 		"clusterName":   cluster.Metadata.Name,

@@ -2,36 +2,37 @@ package processor
 
 import (
 	"fmt"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/krallistic/kafka-operator/controller"
 	"github.com/krallistic/kafka-operator/kafka"
 	spec "github.com/krallistic/kafka-operator/spec"
 	"github.com/krallistic/kafka-operator/util"
 	k8sclient "k8s.io/client-go/kubernetes"
-	"time"
 )
 
 type Processor struct {
 	client          k8sclient.Clientset
 	baseBrokerImage string
 	util            util.ClientUtil
-	tprController   controller.ThirdPartyResourceController
-	kafkaClusters   map[string]*spec.KafkaCluster
-	watchEvents     chan spec.KafkaClusterWatchEvent
-	clusterEvents   chan spec.KafkaClusterEvent
+	tprController   controller.CustomResourceController
+	kafkaClusters   map[string]*spec.Kafkacluster
+	watchEvents     chan spec.KafkaclusterWatchEvent
+	clusterEvents   chan spec.KafkaclusterEvent
 	kafkaClient     map[string]*kafka.KafkaUtil
 	control         chan int
 	errors          chan error
 }
 
-func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClient controller.ThirdPartyResourceController, control chan int) (*Processor, error) {
+func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClient controller.CustomResourceController, control chan int) (*Processor, error) {
 	p := &Processor{
 		client:          client,
 		baseBrokerImage: image,
 		util:            util,
-		kafkaClusters:   make(map[string]*spec.KafkaCluster),
-		watchEvents:     make(chan spec.KafkaClusterWatchEvent, 100),
-		clusterEvents:   make(chan spec.KafkaClusterEvent, 100),
+		kafkaClusters:   make(map[string]*spec.Kafkacluster),
+		watchEvents:     make(chan spec.KafkaclusterWatchEvent, 100),
+		clusterEvents:   make(chan spec.KafkaclusterEvent, 100),
 		tprController:   tprClient,
 		kafkaClient:     make(map[string]*kafka.KafkaUtil),
 		control:         control,
@@ -45,14 +46,14 @@ func (p *Processor) Run() error {
 	//TODO getListOfAlredyRunningCluster/Refresh
 	fmt.Println("Running Processor")
 	p.watchKafkaEvents()
-
+	fmt.Println("Watching")
 	return nil
 }
 
 //We detect basic change through the event type, beyond that we use the API server to find differences.
 //Functions compares the KafkaClusterSpec with the real Pods/Services which are there.
 //We do that because otherwise we would have to use a local state to track changes.
-func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.KafkaClusterEvent {
+func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.KafkaclusterEvent {
 	fmt.Println("DetectChangeType: ", event)
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "DetectChangeType",
@@ -62,7 +63,7 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 	methodLogger.Info("Detecting type of change in Kafka TPR")
 
 	//TODO multiple changes in one Update? right now we only detect one change
-	clusterEvent := spec.KafkaClusterEvent{
+	clusterEvent := spec.KafkaclusterEvent{
 		Cluster: event.Object,
 	}
 	if event.Type == "ADDED" {
@@ -92,7 +93,7 @@ func (p *Processor) DetectChangeType(event spec.KafkaClusterWatchEvent) spec.Kaf
 	return clusterEvent
 }
 
-func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
+func (p *Processor) initKafkaClient(cluster spec.Kafkacluster) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":            "initKafkaClient",
 		"clusterName":       cluster.Metadata.Name,
@@ -114,12 +115,12 @@ func (p *Processor) initKafkaClient(cluster spec.KafkaCluster) error {
 	return nil
 }
 
-func (p *Processor) GetClusterUUID(cluster spec.KafkaCluster) string {
+func (p *Processor) GetClusterUUID(cluster spec.Kafkacluster) string {
 	return cluster.Metadata.Namespace + "-" + cluster.Metadata.Name
 }
 
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
-func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
+func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 	fmt.Println("Recieved Event, proceeding: ", currentEvent)
 	methodLogger := log.WithFields(log.Fields{
 		"method":                "processKafkaEvent",
@@ -132,7 +133,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		clustersTotal.Inc()
 		clustersCreated.Inc()
 		p.CreateKafkaCluster(currentEvent.Cluster)
-		clusterEvent := spec.KafkaClusterEvent{
+		clusterEvent := spec.KafkaclusterEvent{
 			Cluster: currentEvent.Cluster,
 			Type:    spec.KAKFA_EVENT,
 		}
@@ -152,7 +153,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 		go func() {
 			time.Sleep(time.Duration(currentEvent.Cluster.Spec.BrokerCount) * time.Minute)
 			//TODO dynamic sleep, depending till sts is completely scaled down.
-			clusterEvent := spec.KafkaClusterEvent{
+			clusterEvent := spec.KafkaclusterEvent{
 				Cluster: currentEvent.Cluster,
 				Type:    spec.CLEANUP_EVENT,
 			}
@@ -243,11 +244,11 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaClusterEvent) {
 	}
 }
 
-func (p *Processor) Sleep30AndSendEvent(currentEvent spec.KafkaClusterEvent) {
+func (p *Processor) Sleep30AndSendEvent(currentEvent spec.KafkaclusterEvent) {
 	p.SleepAndSendEvent(currentEvent, 30)
 }
 
-func (p *Processor) SleepAndSendEvent(currentEvent spec.KafkaClusterEvent, seconds int) {
+func (p *Processor) SleepAndSendEvent(currentEvent spec.KafkaclusterEvent, seconds int) {
 	go func() {
 		time.Sleep(time.Second * time.Duration(seconds))
 		p.clusterEvents <- currentEvent
@@ -281,7 +282,7 @@ func (p *Processor) watchKafkaEvents() {
 
 //Create the KafkaCluster, with the following components: Service, Volumes, StatefulSet.
 //Maybe move this also into util
-func (p *Processor) CreateKafkaCluster(clusterSpec spec.KafkaCluster) {
+func (p *Processor) CreateKafkaCluster(clusterSpec spec.Kafkacluster) {
 	fmt.Println("CreatingKafkaCluster", clusterSpec)
 	fmt.Println("SPEC: ", clusterSpec.Spec)
 
