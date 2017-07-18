@@ -31,6 +31,81 @@ func (c *ClientUtil) getOffsetMonitorName(cluster spec.Kafkacluster) string {
 	return deplyomentPrefix + "-" + cluster.Metadata.Name
 }
 
+func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *appsv1Beta1.Deployment {
+	replicas := int32(1)
+
+	objectMeta := metav1.ObjectMeta{
+		Name: c.getOffsetMonitorName(cluster),
+		Labels: map[string]string{
+			"component": "kafka",
+			"name":      cluster.Metadata.Name,
+			"role":      "data",
+			"type":      "service",
+		},
+	}
+	podObjectMeta := metav1.ObjectMeta{
+		Name: c.getOffsetMonitorName(cluster),
+		Annotations: map[string]string{
+
+			prometheusScrapeAnnotation: metricsScrape,
+			prometheusPortAnnotation:   metricsPort,
+			prometheusPathAnnotation:   metricPath,
+		},
+		Labels: map[string]string{
+			"component": "kafka",
+			"name":      cluster.Metadata.Name,
+			"role":      "data",
+			"type":      "service",
+		},
+	}
+
+	deploy := &appsv1Beta1.Deployment{
+		ObjectMeta: objectMeta,
+		Spec: appsv1Beta1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: podObjectMeta,
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						v1.Container{
+							Name:  "offset-exporter",
+							Image: offsetExporterImage + ":" + offsetExporterVersion,
+							Ports: []v1.ContainerPort{
+								v1.ContainerPort{
+									Name: "prometheus",
+									//TODO configPort
+									ContainerPort: 8080,
+								},
+							},
+							Env: []v1.EnvVar{
+								v1.EnvVar{
+									Name:  "CLUSTER_NAME",
+									Value: cluster.Metadata.Name,
+								},
+								v1.EnvVar{
+									Name:  "ZOOKEEPER_CONNECT",
+									Value: cluster.Spec.ZookeeperConnect,
+								},
+								v1.EnvVar{
+									Name:  "LISTEN_ADDRESS",
+									Value: ":8080",
+								},
+								v1.EnvVar{
+									Name:  "TELEMETRY_PATH",
+									Value: "/metrics",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return deploy
+
+}
+
 // Deploys the OffsetMonitor as an extra Pod inside the Cluster
 func (c *ClientUtil) DeployOffsetMonitor(cluster spec.Kafkacluster) error {
 	methodLogger := logger.WithFields(log.Fields{
@@ -52,77 +127,10 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.Kafkacluster) error {
 	if len(deployment.Name) == 0 {
 		//Deployment dosnt exist, creating new.
 		methodLogger.Info("Deployment dosnt exist, creating new")
-		replicas := int32(1)
 
-		objectMeta := metav1.ObjectMeta{
-			Name: c.getOffsetMonitorName(cluster),
-			Labels: map[string]string{
-				"component": "kafka",
-				"name":      cluster.Metadata.Name,
-				"role":      "data",
-				"type":      "service",
-			},
-		}
+		deploy := c.GenerateExporterDeployment(cluster)
 
-		podObjectMeta := metav1.ObjectMeta{
-			Name: c.getOffsetMonitorName(cluster),
-			Annotations: map[string]string{
-
-				prometheusScrapeAnnotation: metricsScrape,
-				prometheusPortAnnotation:   metricsPort,
-				prometheusPathAnnotation:   metricPath,
-			},
-			Labels: map[string]string{
-				"component": "kafka",
-				"name":      cluster.Metadata.Name,
-				"role":      "data",
-				"type":      "service",
-			},
-		}
-		deploy := appsv1Beta1.Deployment{
-			ObjectMeta: objectMeta,
-			Spec: appsv1Beta1.DeploymentSpec{
-				Replicas: &replicas,
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: podObjectMeta,
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							v1.Container{
-								Name:  "offset-exporter",
-								Image: offsetExporterImage + ":" + offsetExporterVersion,
-								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
-										Name: "prometheus",
-										//TODO configPort
-										ContainerPort: 8080,
-									},
-								},
-								Env: []v1.EnvVar{
-									v1.EnvVar{
-										Name:  "CLUSTER_NAME",
-										Value: cluster.Metadata.Name,
-									},
-									v1.EnvVar{
-										Name:  "ZOOKEEPER_CONNECT",
-										Value: cluster.Spec.ZookeeperConnect,
-									},
-									v1.EnvVar{
-										Name:  "LISTEN_ADDRESS",
-										Value: ":8080",
-									},
-									v1.EnvVar{
-										Name:  "TELEMETRY_PATH",
-										Value: "/metrics",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		_, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Create(&deploy)
+		_, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Create(deploy)
 		if err != nil {
 			fmt.Println("Error while creating Deployment: ", err)
 			return err
