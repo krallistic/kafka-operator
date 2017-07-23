@@ -42,9 +42,21 @@
   name = "github.com/krallistic/kazoo-go"
 
 [[constraint]]
-  version = "v4.0.0-beta.0"
+  revision = "cc44961f935a644fb82c0f4b6591543704578db7"
   name = "k8s.io/client-go"
 
 [[constraint]]
-  branch = "master"
+  revision = "5fa44608f6b9b2180a2fd1ecb52e651fd0397794"
   name = "k8s.io/apiextensions-apiserver"
+
+[[constraint]]
+  version = "v1.7.0"
+  name = "k8s.io/kubernetes"
+
+[[constraint]]
+  revision = "c79c13d131b0a8f42d05faa6491c12e94ccc6f30"
+  name = "k8s.io/gengo"
+
+[[constraint]]
+  revision = "abe34e4f5b4413c282a83011892cbeea5b32223b"
+  name = "k8s.io/apimachinery"
