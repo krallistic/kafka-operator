@@ -57,7 +57,7 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 	fmt.Println("DetectChangeType: ", event)
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "DetectChangeType",
-		"clusterName": event.Object.Metadata.Name,
+		"clusterName": event.Object.ObjectMeta.Name,
 		"eventType":   event.Type,
 	})
 	methodLogger.Info("Detecting type of change in Kafka TPR")
@@ -96,7 +96,7 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 func (p *Processor) initKafkaClient(cluster spec.Kafkacluster) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":            "initKafkaClient",
-		"clusterName":       cluster.Metadata.Name,
+		"clusterName":       cluster.ObjectMeta.Name,
 		"zookeeperConnectL": cluster.Spec.ZookeeperConnect,
 	})
 	methodLogger.Info("Creating KafkaCLient for cluster")
@@ -116,7 +116,7 @@ func (p *Processor) initKafkaClient(cluster spec.Kafkacluster) error {
 }
 
 func (p *Processor) GetClusterUUID(cluster spec.Kafkacluster) string {
-	return cluster.Metadata.Namespace + "-" + cluster.Metadata.Name
+	return cluster.ObjectMeta.Namespace + "-" + cluster.ObjectMeta.Name
 }
 
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
@@ -124,7 +124,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 	fmt.Println("Recieved Event, proceeding: ", currentEvent)
 	methodLogger := log.WithFields(log.Fields{
 		"method":                "processKafkaEvent",
-		"clusterName":           currentEvent.Cluster.Metadata.Name,
+		"clusterName":           currentEvent.Cluster.ObjectMeta.Name,
 		"KafkaClusterEventType": currentEvent.Type,
 	})
 	switch currentEvent.Type {
@@ -206,6 +206,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		clustersModified.Inc()
 	case spec.CLEANUP_EVENT:
 		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
+		p.util.CleanupKafkaCluster(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		fmt.Println("Kafka Event, heartbeat etc..")
@@ -280,39 +281,34 @@ func (p *Processor) watchKafkaEvents() {
 	}()
 }
 
-//Create the KafkaCluster, with the following components: Service, Volumes, StatefulSet.
+// CreateKafkaCluster with the following components: Service, Volumes, StatefulSet.
 //Maybe move this also into util
 func (p *Processor) CreateKafkaCluster(clusterSpec spec.Kafkacluster) {
-	fmt.Println("CreatingKafkaCluster", clusterSpec)
-	fmt.Println("SPEC: ", clusterSpec.Spec)
+	methodLogger := log.WithFields(log.Fields{
+		"method":      "CreateKafkaCluster",
+		"clusterName": clusterSpec.ObjectMeta.Name,
+	})
 
-	suffix := ".cluster.local:9092"
-	brokerNames := make([]string, clusterSpec.Spec.BrokerCount)
-
-	headless_SVC_Name := clusterSpec.Metadata.Name
-	round_robing_dns := headless_SVC_Name + suffix
-	fmt.Println("Headless Service Name: ", headless_SVC_Name, " Should be accessable through LB: ", round_robing_dns)
-
-	var i int32
-	for i = 0; i < clusterSpec.Spec.BrokerCount; i++ {
-		brokerNames[i] = "kafka-0." + headless_SVC_Name + suffix
-		fmt.Println("Broker", i, " ServiceName: ", brokerNames[i])
+	err := p.util.CreateBrokerStatefulSet(clusterSpec)
+	if err != nil {
+		methodLogger.WithField("error", err).Fatal("Cant create statefulset")
 	}
 
-	//Create Headless Brokersvc
-	//TODO better naming
-	p.util.CreateBrokerService(clusterSpec, true)
+	err = p.util.CreateBrokerService(clusterSpec)
+	if err != nil {
+		methodLogger.WithField("error", err).Fatal("Cant create loadbalacend headless service services")
+	}
 
-	//TODO createVolumes
-
-	//CREATE Broker sts
-	//Currently we extract name out of spec, maybe move to metadata to be more inline with other k8s komponents.
-	p.util.CreateBrokerStatefulSet(clusterSpec)
-
-	p.util.CreateDirectBrokerService(clusterSpec)
+	err = p.util.CreateDirectBrokerService(clusterSpec)
+	if err != nil {
+		methodLogger.WithField("error", err).Fatal("Cant create direct broker services")
+	}
+	//TODO createVolumes here?
 
 	p.initKafkaClient(clusterSpec)
 
-	p.util.DeployOffsetMonitor(clusterSpec)
-
+	err = p.util.DeployOffsetMonitor(clusterSpec)
+	if err != nil {
+		methodLogger.WithField("error", err).Fatal("Cant deploy stats exporter")
+	}
 }
