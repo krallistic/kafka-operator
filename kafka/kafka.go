@@ -28,7 +28,7 @@ func New(clusterSpec spec.Kafkacluster) (*KafkaUtil, error) {
 
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "new",
-		"clusterName": clusterSpec.Metadata.Name,
+		"clusterName": clusterSpec.ObjectMeta.Name,
 		"brokers":     brokerList,
 	})
 	config := sarama.NewConfig()
@@ -63,7 +63,7 @@ func New(clusterSpec spec.Kafkacluster) (*KafkaUtil, error) {
 
 	k := &KafkaUtil{
 		KafkaClient: client,
-		ClusterName: clusterSpec.Metadata.Name,
+		ClusterName: clusterSpec.ObjectMeta.Name,
 		BrokerList:  brokerList,
 		KazooClient: kz,
 	}
@@ -113,7 +113,7 @@ func (k *KafkaUtil) PrintFullStats() error {
 func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.Kafkacluster, brokerId int32) ([]string, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GetTopicsOnBroker",
-		"clusterName": cluster.Metadata.Name,
+		"clusterName": cluster.ObjectMeta.Name,
 	})
 	topicConfiguration, err := k.GetTopicConfiguration(cluster)
 	if err != nil {
@@ -141,7 +141,7 @@ func (k *KafkaUtil) GetTopicsOnBroker(cluster spec.Kafkacluster, brokerId int32)
 func (k *KafkaUtil) GetTopicConfiguration(cluster spec.Kafkacluster) ([]spec.KafkaTopic, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "GetTopicConfiguration",
-		"clusterName": cluster.Metadata.Name,
+		"clusterName": cluster.ObjectMeta.Name,
 	})
 	topics, err := k.KafkaClient.Topics()
 	if err != nil {
@@ -181,7 +181,7 @@ func (k *KafkaUtil) GetTopicConfiguration(cluster spec.Kafkacluster) ([]spec.Kaf
 func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.Kafkacluster, brokerToDelete int32, topic string) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":        "RemoveTopicFromBrokers",
-		"clusterName":   cluster.Metadata.Name,
+		"clusterName":   cluster.ObjectMeta.Name,
 		"brokerToDelte": brokerToDelete,
 		"topic":         topic,
 	})
@@ -198,7 +198,7 @@ func (k *KafkaUtil) RemoveTopicFromBrokers(cluster spec.Kafkacluster, brokerToDe
 func (k *KafkaUtil) RemoveTopicsFromBrokers(cluster spec.Kafkacluster, brokerToDelete int32) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":        "RemoveTopicsFromBrokers",
-		"clusterName":   cluster.Metadata.Name,
+		"clusterName":   cluster.ObjectMeta.Name,
 		"brokerToDelte": brokerToDelete,
 	})
 	topics, err := k.KafkaClient.Topics()

@@ -14,7 +14,7 @@ func TestCreateStsFromSpec(t *testing.T) {
 	util := ClientUtil{}
 
 	spec := spec.Kafkacluster{
-		Metadata: metav1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
 			Namespace: "test",
 		},
@@ -89,4 +89,63 @@ func TestCreateStsFromSpec(t *testing.T) {
 		t.Fatalf("Different AntiAffintiy", *expected.Spec.Template.Spec.Affinity, *created.Spec.Template.Spec.Affinity)
 	}
 
+}
+
+func TestGenerateHeadlessService(t *testing.T) {
+	util := ClientUtil{}
+
+	spec := spec.Kafkacluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test",
+		},
+		Spec: spec.KafkaclusterSpec{
+			Image:            "testImage",
+			BrokerCount:      3,
+			JmxSidecar:       false,
+			ZookeeperConnect: "testZookeeperConnect",
+		},
+	}
+
+	objectMeta := metav1.ObjectMeta{
+		Name: "test-cluster",
+		Annotations: map[string]string{
+			"component": "kafka",
+			"name":      "test-cluster",
+			"role":      "data",
+			"type":      "service",
+		},
+	}
+
+	objectMeta.Labels = map[string]string{
+		"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
+	}
+
+	expectedResult := &v1.Service{
+		ObjectMeta: objectMeta,
+
+		Spec: v1.ServiceSpec{
+			Selector: map[string]string{
+				"component": "kafka",
+				"creator":   "kafka-operator",
+				"role":      "data",
+				"name":      "test-cluster",
+			},
+			Ports: []v1.ServicePort{
+				v1.ServicePort{
+					Name: "broker",
+					Port: 9092,
+				},
+			},
+			ClusterIP: "None",
+		},
+	}
+
+	result := util.GenerateHeadlessService(spec)
+	if result == nil {
+		t.Fatalf("return value should not be nil", result)
+	}
+	if !reflect.DeepEqual(result, expectedResult) {
+		t.Fatalf("results were not equal", result, expectedResult)
+	}
 }

@@ -28,7 +28,7 @@ const (
 )
 
 func (c *ClientUtil) getOffsetMonitorName(cluster spec.Kafkacluster) string {
-	return deplyomentPrefix + "-" + cluster.Metadata.Name
+	return deplyomentPrefix + "-" + cluster.ObjectMeta.Name
 }
 
 func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *appsv1Beta1.Deployment {
@@ -38,7 +38,7 @@ func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *apps
 		Name: c.getOffsetMonitorName(cluster),
 		Labels: map[string]string{
 			"component": "kafka",
-			"name":      cluster.Metadata.Name,
+			"name":      cluster.ObjectMeta.Name,
 			"role":      "data",
 			"type":      "service",
 		},
@@ -53,7 +53,7 @@ func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *apps
 		},
 		Labels: map[string]string{
 			"component": "kafka",
-			"name":      cluster.Metadata.Name,
+			"name":      cluster.ObjectMeta.Name,
 			"role":      "data",
 			"type":      "service",
 		},
@@ -80,7 +80,7 @@ func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *apps
 							Env: []v1.EnvVar{
 								v1.EnvVar{
 									Name:  "CLUSTER_NAME",
-									Value: cluster.Metadata.Name,
+									Value: cluster.ObjectMeta.Name,
 								},
 								v1.EnvVar{
 									Name:  "ZOOKEEPER_CONNECT",
@@ -110,11 +110,11 @@ func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *apps
 func (c *ClientUtil) DeployOffsetMonitor(cluster spec.Kafkacluster) error {
 	methodLogger := logger.WithFields(log.Fields{
 		"method":    "DeployOffsetMonitor",
-		"name":      cluster.Metadata.Name,
-		"namespace": cluster.Metadata.Namespace,
+		"name":      cluster.ObjectMeta.Name,
+		"namespace": cluster.ObjectMeta.Namespace,
 	})
 
-	deployment, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption)
+	deployment, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.ObjectMeta.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption)
 
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -130,7 +130,7 @@ func (c *ClientUtil) DeployOffsetMonitor(cluster spec.Kafkacluster) error {
 
 		deploy := c.GenerateExporterDeployment(cluster)
 
-		_, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.Metadata.Namespace).Create(deploy)
+		_, err := c.KubernetesClient.AppsV1beta1().Deployments(cluster.ObjectMeta.Namespace).Create(deploy)
 		if err != nil {
 			fmt.Println("Error while creating Deployment: ", err)
 			return err
@@ -154,7 +154,7 @@ func (c *ClientUtil) DeleteOffsetMonitor(cluster spec.Kafkacluster) error {
 		GracePeriodSeconds: &gracePeriod,
 	}
 
-	deployment, err := c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.Metadata.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption) //Scaling Replicas down to Zero
+	deployment, err := c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.ObjectMeta.Namespace).Get(c.getOffsetMonitorName(cluster), c.DefaultOption) //Scaling Replicas down to Zero
 	if (len(deployment.Name) == 0) && (err != nil) {
 		fmt.Println("Error while getting Deployment,"+
 			" since we want to delete that should be fine: ", err)
@@ -165,14 +165,14 @@ func (c *ClientUtil) DeleteOffsetMonitor(cluster spec.Kafkacluster) error {
 	replicas = 0
 	deployment.Spec.Replicas = &replicas
 
-	_, err = c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.Metadata.Namespace).Update(deployment)
+	_, err = c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.ObjectMeta.Namespace).Update(deployment)
 	if err != nil {
 		fmt.Println("Error while scaling down Broker Sts: ", err)
 		return err
 	}
 
 	//TODO sleep
-	err = c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.Metadata.Namespace).Delete(c.getOffsetMonitorName(cluster), &deleteOption)
+	err = c.KubernetesClient.AppsV1beta1Client.Deployments(cluster.ObjectMeta.Namespace).Delete(c.getOffsetMonitorName(cluster), &deleteOption)
 	if err != nil {
 		fmt.Println("Error while deleting deployment, dont care since we want delete anyway?")
 		return err

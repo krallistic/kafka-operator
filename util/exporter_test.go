@@ -15,7 +15,7 @@ func TestGenerateExporterDeployment(t *testing.T) {
 	util := ClientUtil{}
 
 	spec := spec.Kafkacluster{
-		Metadata: metav1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
 			Namespace: "test",
 		},
