@@ -2,6 +2,7 @@ package processor
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -54,13 +55,12 @@ func (p *Processor) Run() error {
 //Functions compares the KafkaClusterSpec with the real Pods/Services which are there.
 //We do that because otherwise we would have to use a local state to track changes.
 func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.KafkaclusterEvent {
-	fmt.Println("DetectChangeType: ", event)
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "DetectChangeType",
 		"clusterName": event.Object.ObjectMeta.Name,
 		"eventType":   event.Type,
 	})
-	methodLogger.Info("Detecting type of change in Kafka TPR")
+	methodLogger.Debug("Detecting type of change in Kafka CRD")
 
 	//TODO multiple changes in one Update? right now we only detect one change
 	clusterEvent := spec.KafkaclusterEvent{
@@ -71,16 +71,43 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 		return clusterEvent
 	}
 	if event.Type == "DELETED" {
-		clusterEvent.Type = spec.DELTE_CLUSTER
+		clusterEvent.Type = spec.DELETE_CLUSTER
 		return clusterEvent
-		//EVENT type must be modfied now
-	} else if p.util.BrokerStSImageUpdate(event.OldObject, event.Object) {
+
+	}
+	//EVENT type must be modfied now.
+	oldCluster := event.OldObject
+	newCluster := event.Object
+
+	if reflect.DeepEqual(oldCluster, spec.Kafkacluster{}) {
+		methodLogger.Error("Got changed type, but either new or old object is nil")
+		clusterEvent.Type = spec.ERROR_STATE
+		return clusterEvent
+	}
+
+	methodLogger = methodLogger.WithFields(log.Fields{
+		"oldCluster": oldCluster,
+		"newCluster": newCluster,
+	})
+
+	clusterEvent.OldCluster = event.OldObject
+
+	if !reflect.DeepEqual(oldCluster.State, newCluster.State) {
+		methodLogger.Debug("Cluster State different, doing nothing")
+		clusterEvent.Type = spec.STATE_CHANGE
+		return clusterEvent
+	} else if !reflect.DeepEqual(oldCluster.State, newCluster.State) {
+		methodLogger.Debug("Cluster Scale different, doing nothing")
+		clusterEvent.Type = spec.SCALE_CHANGE
+		return clusterEvent
+
+	} else if oldCluster.Spec.Image != newCluster.Spec.Image {
 		clusterEvent.Type = spec.CHANGE_IMAGE
 		return clusterEvent
-	} else if p.util.BrokerStSUpsize(event.OldObject, event.Object) {
+	} else if oldCluster.Spec.BrokerCount < newCluster.Spec.BrokerCount {
 		clusterEvent.Type = spec.UPSIZE_CLUSTER
 		return clusterEvent
-	} else if p.util.BrokerStSDownsize(event.OldObject, event.Object) {
+	} else if oldCluster.Spec.BrokerCount > newCluster.Spec.BrokerCount {
 		clusterEvent.Type = spec.DOWNSIZE_CLUSTER
 		return clusterEvent
 	} else if p.util.BrokerStatefulSetExist(event.Object) {
@@ -108,14 +135,14 @@ func (p *Processor) initKafkaClient(cluster spec.Kafkacluster) error {
 	}
 
 	//TODO can metadata.uuid used? check how that changed
-	name := p.GetClusterUUID(cluster)
+	name := p.getClusterUUID(cluster)
 	p.kafkaClient[name] = client
 
 	methodLogger.Info("Create KakfaClient for cluser")
 	return nil
 }
 
-func (p *Processor) GetClusterUUID(cluster spec.Kafkacluster) string {
+func (p *Processor) getClusterUUID(cluster spec.Kafkacluster) string {
 	return cluster.ObjectMeta.Namespace + "-" + cluster.ObjectMeta.Name
 }
 
@@ -139,14 +166,14 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		}
 
 		methodLogger.Info("Init heartbeat type checking...")
-		p.Sleep30AndSendEvent(clusterEvent)
+		p.sleep30AndSendEvent(clusterEvent)
 		break
 
-	case spec.DELTE_CLUSTER:
+	case spec.DELETE_CLUSTER:
 		methodLogger.Info("Delete Cluster, deleting all Objects ")
 		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
 			//Error while deleting, just resubmit event after wait time.
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 			break
 		}
 
@@ -167,7 +194,7 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
 			//Error updating
 			internalErrors.Inc()
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 			break
 		}
 		clustersModified.Inc()
@@ -189,15 +216,15 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		if err != nil {
 			//just re-try delete event
 			internalErrors.Inc()
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 			break
 		}
 
-		err = p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
+		err = p.kafkaClient[p.getClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
 		if err != nil {
 			//just re-try delete event
 			internalErrors.Inc()
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 			break
 		}
 		clustersModified.Inc()
@@ -210,16 +237,16 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		fmt.Println("Kafka Event, heartbeat etc..")
-		p.Sleep30AndSendEvent(currentEvent)
+		p.sleep30AndSendEvent(currentEvent)
 	case spec.DOWNSIZE_EVENT:
 		methodLogger.Info("Got Downsize Event, checking if all Topics are fully replicated and no topic on to delete cluster")
 		//GET CLUSTER TO DELETE
 		toDelete, err := p.util.GetBrokersWithState(currentEvent.Cluster, spec.EMPTY_BROKER)
 		if err != nil {
 			internalErrors.Inc()
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 		}
-		kafkaClient := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)]
+		kafkaClient := p.kafkaClient[p.getClusterUUID(currentEvent.Cluster)]
 		topics, err := kafkaClient.GetTopicsOnBroker(currentEvent.Cluster, int32(toDelete))
 		if len(topics) > 0 {
 			//Move topics from Broker
@@ -232,24 +259,24 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		}
 		if err != nil {
 			internalErrors.Inc()
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 		}
 		//CHECK if all Topics has been moved off
-		inSync, err := p.kafkaClient[p.GetClusterUUID(currentEvent.Cluster)].AllTopicsInSync()
+		inSync, err := p.kafkaClient[p.getClusterUUID(currentEvent.Cluster)].AllTopicsInSync()
 		if err != nil || !inSync {
 			internalErrors.Inc()
-			p.Sleep30AndSendEvent(currentEvent)
+			p.sleep30AndSendEvent(currentEvent)
 			break
 		}
 
 	}
 }
 
-func (p *Processor) Sleep30AndSendEvent(currentEvent spec.KafkaclusterEvent) {
-	p.SleepAndSendEvent(currentEvent, 30)
+func (p *Processor) sleep30AndSendEvent(currentEvent spec.KafkaclusterEvent) {
+	p.sleepAndSendEvent(currentEvent, 30)
 }
 
-func (p *Processor) SleepAndSendEvent(currentEvent spec.KafkaclusterEvent, seconds int) {
+func (p *Processor) sleepAndSendEvent(currentEvent spec.KafkaclusterEvent, seconds int) {
 	go func() {
 		time.Sleep(time.Second * time.Duration(seconds))
 		p.clusterEvents <- currentEvent
