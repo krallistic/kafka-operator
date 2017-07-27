@@ -16,7 +16,9 @@ type Kafkacluster struct {
 	metav1.ObjectMeta `json:"metadata"`
 	//Metadata          metav1.ObjectMeta `json:"metadata"`
 
-	Spec KafkaclusterSpec `json:"spec"`
+	Spec  KafkaclusterSpec  `json:"spec"`
+	State KafkaclusterState `json:"state,omitempty"`
+	Scale KafkaclusterScale `json:"scale,omitempty"`
 }
 
 // k8s API List Type
@@ -46,6 +48,24 @@ type KafkaclusterSpec struct {
 
 	LeaderImbalanceRatio    float32 `json:"leaderImbalanceRatio"`
 	LeaderImbalanceInterval int32   `json:"leaderImbalanceInterval"`
+}
+
+//KafkaclusterState Represent State field inside cluster, is used to do insert current state information.
+type KafkaclusterState struct {
+	Status  string        `json:"status,omitempty"`
+	Topics  []string      `json:"topics,omitempty"`
+	Brokers []BrokerState `json:"brokers,omitempty"`
+}
+
+//BrokerState contains state about brokers
+type BrokerState struct {
+	ID string `json:"id,omitempty"`
+}
+
+//KafkaclusterScale represent the `scale` field inside the crd
+type KafkaclusterScale struct {
+	CurrentScale int32 `json:"currentScale,omitempty"`
+	DesiredScale int32 `json:"desiredScale,omitempty"`
 }
 
 //TODO refactor to just use native k8s types
@@ -304,7 +324,7 @@ type KafkaEventType int32
 
 const (
 	NEW_CLUSTER KafkaEventType = iota + 1
-	DELTE_CLUSTER
+	DELETE_CLUSTER
 	UPSIZE_CLUSTER
 	DOWNSIZE_CLUSTER
 	CHANGE_IMAGE
@@ -318,6 +338,9 @@ const (
 	//Its ensure the deletion of the Statefulset after it has been scaled down.
 	CLEANUP_EVENT
 	KAKFA_EVENT
+	STATE_CHANGE
+	SCALE_CHANGE
+	ERROR_STATE
 )
 
 type KafkaBrokerState string
