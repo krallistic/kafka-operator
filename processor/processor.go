@@ -1,7 +1,6 @@
 package processor
 
 import (
-	"fmt"
 	"reflect"
 	"time"
 
@@ -14,40 +13,61 @@ import (
 )
 
 type Processor struct {
-	client          k8sclient.Clientset
-	baseBrokerImage string
-	util            util.ClientUtil
-	tprController   controller.CustomResourceController
-	kafkaClusters   map[string]*spec.Kafkacluster
-	watchEvents     chan spec.KafkaclusterWatchEvent
-	clusterEvents   chan spec.KafkaclusterEvent
-	kafkaClient     map[string]*kafka.KafkaUtil
-	control         chan int
-	errors          chan error
+	client             k8sclient.Clientset
+	baseBrokerImage    string
+	util               util.ClientUtil
+	crdController      controller.CustomResourceController
+	kafkaClusters      map[string]*spec.Kafkacluster
+	watchEventsChannel chan spec.KafkaclusterWatchEvent
+	clusterEvents      chan spec.KafkaclusterEvent
+	kafkaClient        map[string]*kafka.KafkaUtil
+	control            chan int
+	errors             chan error
 }
 
-func New(client k8sclient.Clientset, image string, util util.ClientUtil, tprClient controller.CustomResourceController, control chan int) (*Processor, error) {
+func New(client k8sclient.Clientset, image string, util util.ClientUtil, crdClient controller.CustomResourceController, control chan int) (*Processor, error) {
 	p := &Processor{
-		client:          client,
-		baseBrokerImage: image,
-		util:            util,
-		kafkaClusters:   make(map[string]*spec.Kafkacluster),
-		watchEvents:     make(chan spec.KafkaclusterWatchEvent, 100),
-		clusterEvents:   make(chan spec.KafkaclusterEvent, 100),
-		tprController:   tprClient,
-		kafkaClient:     make(map[string]*kafka.KafkaUtil),
-		control:         control,
-		errors:          make(chan error),
+		client:             client,
+		baseBrokerImage:    image,
+		util:               util,
+		kafkaClusters:      make(map[string]*spec.Kafkacluster),
+		watchEventsChannel: make(chan spec.KafkaclusterWatchEvent, 100),
+		clusterEvents:      make(chan spec.KafkaclusterEvent, 100),
+		crdController:      crdClient,
+		kafkaClient:        make(map[string]*kafka.KafkaUtil),
+		control:            control,
+		errors:             make(chan error),
 	}
-	fmt.Println("Created Processor")
+	log.Info("Created Processor")
 	return p, nil
+}
+
+func (p *Processor) initKafkaClient(cluster spec.Kafkacluster) error {
+	methodLogger := log.WithFields(log.Fields{
+		"method":            "initKafkaClient",
+		"clusterName":       cluster.ObjectMeta.Name,
+		"zookeeperConnectL": cluster.Spec.ZookeeperConnect,
+	})
+	methodLogger.Info("Creating KafkaCLient for cluster")
+
+	client, err := kafka.New(cluster)
+	if err != nil {
+		internalErrors.Inc()
+		return err
+	}
+
+	//TODO can metadata.uuid used? check how that changed
+	name := p.getClusterUUID(cluster)
+	p.kafkaClient[name] = client
+
+	methodLogger.Info("Create KakfaClient for cluser")
+	return nil
 }
 
 func (p *Processor) Run() error {
 	//TODO getListOfAlredyRunningCluster/Refresh
-	fmt.Println("Running Processor")
-	p.watchKafkaEvents()
-	fmt.Println("Watching")
+	log.Info("Running Processor")
+	p.watchEvents()
 	return nil
 }
 
@@ -96,7 +116,7 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 		methodLogger.Debug("Cluster State different, doing nothing")
 		clusterEvent.Type = spec.STATE_CHANGE
 		return clusterEvent
-	} else if !reflect.DeepEqual(oldCluster.State, newCluster.State) {
+	} else if !reflect.DeepEqual(oldCluster.Scale, newCluster.Scale) {
 		methodLogger.Debug("Cluster Scale different, doing nothing")
 		clusterEvent.Type = spec.SCALE_CHANGE
 		return clusterEvent
@@ -120,45 +140,22 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 	return clusterEvent
 }
 
-func (p *Processor) initKafkaClient(cluster spec.Kafkacluster) error {
-	methodLogger := log.WithFields(log.Fields{
-		"method":            "initKafkaClient",
-		"clusterName":       cluster.ObjectMeta.Name,
-		"zookeeperConnectL": cluster.Spec.ZookeeperConnect,
-	})
-	methodLogger.Info("Creating KafkaCLient for cluster")
-
-	client, err := kafka.New(cluster)
-	if err != nil {
-		internalErrors.Inc()
-		return err
-	}
-
-	//TODO can metadata.uuid used? check how that changed
-	name := p.getClusterUUID(cluster)
-	p.kafkaClient[name] = client
-
-	methodLogger.Info("Create KakfaClient for cluser")
-	return nil
-}
-
 func (p *Processor) getClusterUUID(cluster spec.Kafkacluster) string {
 	return cluster.ObjectMeta.Namespace + "-" + cluster.ObjectMeta.Name
 }
 
 //Takes in raw Kafka events, lets then detected and the proced to initiate action accoriding to the detected event.
-func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
-	fmt.Println("Recieved Event, proceeding: ", currentEvent)
+func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 	methodLogger := log.WithFields(log.Fields{
-		"method":                "processKafkaEvent",
+		"method":                "processEvent",
 		"clusterName":           currentEvent.Cluster.ObjectMeta.Name,
 		"KafkaClusterEventType": currentEvent.Type,
 	})
+	methodLogger.Debug("Recieved Event, processing")
 	switch currentEvent.Type {
 	case spec.NEW_CLUSTER:
-		fmt.Println("ADDED")
-		clustersTotal.Inc()
-		clustersCreated.Inc()
+		methodLogger.WithField("event-type", spec.NEW_CLUSTER).Info("New CRD added, creating cluster")
+
 		p.CreateKafkaCluster(currentEvent.Cluster)
 		clusterEvent := spec.KafkaclusterEvent{
 			Cluster: currentEvent.Cluster,
@@ -166,11 +163,13 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		}
 
 		methodLogger.Info("Init heartbeat type checking...")
+		clustersTotal.Inc()
+		clustersCreated.Inc()
 		p.sleep30AndSendEvent(clusterEvent)
 		break
 
 	case spec.DELETE_CLUSTER:
-		methodLogger.Info("Delete Cluster, deleting all Objects ")
+		methodLogger.WithField("event-type", spec.DELETE_CLUSTER).Info("Delete Cluster, deleting all Objects ")
 		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
 			//Error while deleting, just resubmit event after wait time.
 			p.sleep30AndSendEvent(currentEvent)
@@ -190,7 +189,8 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		clustersTotal.Dec()
 		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
-		fmt.Println("Change Image, updating StatefulSet should be enough to trigger a new Image Rollout")
+		methodLogger.Info("Change Image Event detected, updating StatefulSet to trigger a new rollout")
+
 		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
 			//Error updating
 			internalErrors.Inc()
@@ -206,7 +206,6 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		methodLogger.Warn("Unknown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
 		clustersModified.Inc()
 	case spec.DOWNSIZE_CLUSTER:
-		fmt.Println("Downsize Cluster")
 		//TODO remove poor mans casting :P
 		//TODO support Downsizing Multiple Brokers
 		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
@@ -232,11 +231,11 @@ func (p *Processor) processKafkaEvent(currentEvent spec.KafkaclusterEvent) {
 		methodLogger.Warn("Trying to change zookeeper connect, not supported currently")
 		clustersModified.Inc()
 	case spec.CLEANUP_EVENT:
-		fmt.Println("Recieved CleanupEvent, force delete of StatefuleSet.")
+		methodLogger.Info("Recieved CleanupEvent, force delete of StatefuleSet.")
 		p.util.CleanupKafkaCluster(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
-		fmt.Println("Kafka Event, heartbeat etc..")
+		methodLogger.Debug("Kafka Event, heartbeat etc..")
 		p.sleep30AndSendEvent(currentEvent)
 	case spec.DOWNSIZE_EVENT:
 		methodLogger.Info("Got Downsize Event, checking if all Topics are fully replicated and no topic on to delete cluster")
@@ -285,23 +284,22 @@ func (p *Processor) sleepAndSendEvent(currentEvent spec.KafkaclusterEvent, secon
 
 //Creates inside a goroutine a watch channel on the KafkaCLuster Endpoint and distibutes the events.
 //control chan used for showdown events from outside
-func (p *Processor) watchKafkaEvents() {
+func (p *Processor) watchEvents() {
 
-	p.tprController.MonitorKafkaEvents(p.watchEvents, p.control)
-	fmt.Println("Watching Kafka Events")
+	p.crdController.MonitorKafkaEvents(p.watchEventsChannel, p.control)
+	log.Debug("Watching Events")
 	go func() {
 		for {
-
 			select {
-			case currentEvent := <-p.watchEvents:
+			case currentEvent := <-p.watchEventsChannel:
 				classifiedEvent := p.DetectChangeType(currentEvent)
 				p.clusterEvents <- classifiedEvent
 			case clusterEvent := <-p.clusterEvents:
-				p.processKafkaEvent(clusterEvent)
+				p.processEvent(clusterEvent)
 			case err := <-p.errors:
-				println("Error Channel", err)
-			case <-p.control:
-				fmt.Println("Recieved Something on Control Channel, shutting down: ")
+				log.WithField("error", err).Error("Recieved Error through error channel")
+			case ctl := <-p.control:
+				log.WithField("control-event", ctl).Warn("Recieved Something on Control Channel, shutting down")
 				return
 			}
 		}

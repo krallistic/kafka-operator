@@ -13,16 +13,16 @@ import (
 
 func TestProcessor_DetectChangeType(t *testing.T) {
 	type fields struct {
-		client          k8sclient.Clientset
-		baseBrokerImage string
-		util            util.ClientUtil
-		tprController   controller.CustomResourceController
-		kafkaClusters   map[string]*spec.Kafkacluster
-		watchEvents     chan spec.KafkaclusterWatchEvent
-		clusterEvents   chan spec.KafkaclusterEvent
-		kafkaClient     map[string]*kafka.KafkaUtil
-		control         chan int
-		errors          chan error
+		client             k8sclient.Clientset
+		baseBrokerImage    string
+		util               util.ClientUtil
+		crdController      controller.CustomResourceController
+		kafkaClusters      map[string]*spec.Kafkacluster
+		watchEventsChannel chan spec.KafkaclusterWatchEvent
+		clusterEvents      chan spec.KafkaclusterEvent
+		kafkaClient        map[string]*kafka.KafkaUtil
+		control            chan int
+		errors             chan error
 	}
 	type args struct {
 		event spec.KafkaclusterWatchEvent
@@ -183,19 +183,20 @@ func TestProcessor_DetectChangeType(t *testing.T) {
 		},
 		// TODO: Add test cases.
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Processor{
-				client:          tt.fields.client,
-				baseBrokerImage: tt.fields.baseBrokerImage,
-				util:            tt.fields.util,
-				tprController:   tt.fields.tprController,
-				kafkaClusters:   tt.fields.kafkaClusters,
-				watchEvents:     tt.fields.watchEvents,
-				clusterEvents:   tt.fields.clusterEvents,
-				kafkaClient:     tt.fields.kafkaClient,
-				control:         tt.fields.control,
-				errors:          tt.fields.errors,
+				client:             tt.fields.client,
+				baseBrokerImage:    tt.fields.baseBrokerImage,
+				util:               tt.fields.util,
+				crdController:      tt.fields.crdController,
+				kafkaClusters:      tt.fields.kafkaClusters,
+				watchEventsChannel: tt.fields.watchEventsChannel,
+				clusterEvents:      tt.fields.clusterEvents,
+				kafkaClient:        tt.fields.kafkaClient,
+				control:            tt.fields.control,
+				errors:             tt.fields.errors,
 			}
 			if got := p.DetectChangeType(tt.args.event); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Processor.DetectChangeType() = %v, want %v", got, tt.want)
