@@ -29,7 +29,10 @@ var (
 
 	metricListenAddress string
 	metricListenPath    string
-	logger              = log.WithFields(log.Fields{
+
+	logLevel string
+
+	logger = log.WithFields(log.Fields{
 		"package": "main",
 	})
 )
@@ -40,14 +43,23 @@ func init() {
 	flag.StringVar(&masterHost, "masterhost", "http://localhost:8080", "Full url to kubernetes api server")
 	flag.StringVar(&image, "image", "confluentinc/cp-kafka:latest", "Image to use for Brokers")
 	//flag.StringVar(&zookeerConnect, "zookeeperConnect", "zk-0.zk-headless.default.svc.cluster.local:2181", "Connect String to zK, if no string is give a custom zookeeper ist deployed")
-	flag.Parse()
+
+	flag.StringVar(&logLevel, "log-level", "debug", "log level, one of debug, info, warn, error")
 
 	flag.StringVar(&metricListenAddress, "listen-address", ":9090", "The address to listen on for HTTP requests.")
 	flag.StringVar(&metricListenPath, "metric-path", "/metrics", "Path under which the the prometheus metrics can be found")
-
+	flag.Parse()
 }
 
 func Main() int {
+	//TODO make cmd-line flag
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		log.WithField("error", err).Error("Error cant parse log-level, defaulting to info")
+		level = log.InfoLevel
+	}
+	log.SetLevel(level)
+
 	logger.WithFields(log.Fields{
 		"version":               version,
 		"masterHost":            masterHost,
