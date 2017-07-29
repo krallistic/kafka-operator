@@ -99,6 +99,16 @@ func (c *ClientUtil) CreateStorage(cluster spec.KafkaclusterSpec) {
 
 }
 
+func (c *ClientUtil) createLabels(cluster spec.Kafkacluster) map[string]string {
+	labels := map[string]string{
+		"component": "kafka",
+		"creator":   "kafka-operator",
+		"role":      "data",
+		"name":      cluster.ObjectMeta.Name,
+	}
+	return labels
+}
+
 func (c *ClientUtil) CreateDirectBrokerService(cluster spec.Kafkacluster) error {
 	methodLogger := logger.WithFields(log.Fields{
 		"method":      "CreateDirectBrokerService",
@@ -112,15 +122,13 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.Kafkacluster) error 
 
 	for i := 0; i < int(brokerCount); i++ {
 
-		service_name := cluster.ObjectMeta.Name + "-broker-" + strconv.Itoa(i)
-		cluster_name := cluster.ObjectMeta.Name
-
+		serviceName := cluster.ObjectMeta.Name + "-broker-" + strconv.Itoa(i)
 		methodLogger.WithFields(log.Fields{
 			"id":           i,
-			"service_name": service_name,
+			"service_name": serviceName,
 		}).Info("Creating Direct Broker SVC: ")
 
-		svc, err := c.KubernetesClient.Services(cluster.ObjectMeta.Namespace).Get(service_name, c.DefaultOption)
+		svc, err := c.KubernetesClient.Services(cluster.ObjectMeta.Namespace).Get(serviceName, c.DefaultOption)
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				methodLogger.WithFields(log.Fields{
@@ -131,27 +139,20 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.Kafkacluster) error 
 		}
 		if len(svc.Name) == 0 {
 			//Service dosnt exist, creating
+
+			labelSelectors := c.createLabels(cluster)
+			labelSelectors["kafka_broker_id"] = strconv.Itoa(i)
 			objectMeta := metav1.ObjectMeta{
-				Name:      service_name,
-				Namespace: cluster.ObjectMeta.Namespace,
-				Annotations: map[string]string{
-					"component": "kafka",
-					"name":      cluster_name,
-					"role":      "data",
-					"type":      "service",
-				},
+				Name:        serviceName,
+				Namespace:   cluster.ObjectMeta.Namespace,
+				Annotations: labelSelectors,
 			}
+
 			service := &v1.Service{
 				ObjectMeta: objectMeta,
 				Spec: v1.ServiceSpec{
-					Type: v1.ServiceTypeNodePort,
-					Selector: map[string]string{
-						"component":       "kafka",
-						"creator":         "kafka-operator",
-						"role":            "data",
-						"name":            cluster_name,
-						"kafka_broker_id": strconv.Itoa(i),
-					},
+					Type:     v1.ServiceTypeNodePort,
+					Selector: labelSelectors,
 					Ports: []v1.ServicePort{
 						v1.ServicePort{
 							Name: "broker",
@@ -165,13 +166,13 @@ func (c *ClientUtil) CreateDirectBrokerService(cluster spec.Kafkacluster) error 
 			if err != nil {
 				methodLogger.WithFields(log.Fields{
 					"error":        err,
-					"service_name": service_name,
+					"service_name": serviceName,
 				}).Error("Error while creating direct broker service")
 				return err
 			}
 			methodLogger.WithFields(log.Fields{
 				"service":      service,
-				"service_name": service_name,
+				"service_name": serviceName,
 			}).Debug("Created direct Access Service")
 		}
 	}
@@ -282,15 +283,11 @@ func (c *ClientUtil) SetBrokerState(cluster spec.Kafkacluster, brokerId int32, s
 }
 
 func (c *ClientUtil) GenerateHeadlessService(cluster spec.Kafkacluster) *v1.Service {
+	labelSelectors := c.createLabels(cluster)
 
 	objectMeta := metav1.ObjectMeta{
-		Name: cluster.ObjectMeta.Name,
-		Annotations: map[string]string{
-			"component": "kafka",
-			"name":      cluster.ObjectMeta.Name,
-			"role":      "data",
-			"type":      "service",
-		},
+		Name:        cluster.ObjectMeta.Name,
+		Annotations: labelSelectors,
 	}
 
 	objectMeta.Labels = map[string]string{
@@ -301,12 +298,7 @@ func (c *ClientUtil) GenerateHeadlessService(cluster spec.Kafkacluster) *v1.Serv
 		ObjectMeta: objectMeta,
 
 		Spec: v1.ServiceSpec{
-			Selector: map[string]string{
-				"component": "kafka",
-				"creator":   "kafka-operator",
-				"role":      "data",
-				"name":      cluster.ObjectMeta.Name,
-			},
+			Selector: labelSelectors,
 			Ports: []v1.ServicePort{
 				v1.ServicePort{
 					Name: "broker",
@@ -371,18 +363,6 @@ func (c *ClientUtil) BrokerStatefulSetExist(cluster spec.Kafkacluster) bool {
 	return true
 }
 
-func (c *ClientUtil) BrokerStSImageUpdate(oldCluster spec.Kafkacluster, newCluster spec.Kafkacluster) bool {
-	return oldCluster.Spec.Image != newCluster.Spec.Image
-}
-
-func (c *ClientUtil) BrokerStSUpsize(oldCluster spec.Kafkacluster, newCluster spec.Kafkacluster) bool {
-	return oldCluster.Spec.BrokerCount < newCluster.Spec.BrokerCount
-}
-
-func (c *ClientUtil) BrokerStSDownsize(oldCluster spec.Kafkacluster, newCluster spec.Kafkacluster) bool {
-	return oldCluster.Spec.BrokerCount < newCluster.Spec.BrokerCount
-}
-
 func GetBrokerAdressess(cluster spec.Kafkacluster) []string {
 	brokers := make([]string, cluster.Spec.BrokerCount)
 
@@ -440,13 +420,8 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.Kafkacluster) *appsv1Beta1.S
 
 	statefulSet := &appsv1Beta1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"component": "kafka",
-				"creator":   "kafka-operator",
-				"role":      "data",
-				"name":      name,
-			},
+			Name:   name,
+			Labels: c.createLabels(cluster),
 		},
 		Spec: appsv1Beta1.StatefulSetSpec{
 			Replicas: &replicas,
@@ -454,12 +429,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.Kafkacluster) *appsv1Beta1.S
 			ServiceName: cluster.ObjectMeta.Name,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"component": "kafka",
-						"creator":   "kafka-operator",
-						"role":      "data",
-						"name":      name,
-					},
+					Labels: c.createLabels(cluster),
 				},
 				Spec: v1.PodSpec{
 					Affinity: &v1.Affinity{
@@ -470,12 +440,9 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.Kafkacluster) *appsv1Beta1.S
 									PodAffinityTerm: v1.PodAffinityTerm{
 										Namespaces: []string{cluster.ObjectMeta.Namespace},
 										LabelSelector: &metav1.LabelSelector{
-											MatchLabels: map[string]string{
-												"creator": "kafka-operator",
-												"name":    name,
-											},
+											MatchLabels: c.createLabels(cluster),
 										},
-										TopologyKey: "kubernetes.io/hostname", //sfddfsTODO topologieKey defined somehwere in k8s?
+										TopologyKey: "kubernetes.io/hostname", //TODO topologieKey defined somehwere in k8s?
 									},
 								},
 							},

@@ -59,8 +59,10 @@ func TestCreateStsFromSpec(t *testing.T) {
 										Namespaces: []string{"test"},
 										LabelSelector: &metav1.LabelSelector{
 											MatchLabels: map[string]string{
-												"creator": "kafka-operator",
-												"name":    "test-cluster",
+												"component": "kafka",
+												"creator":   "kafka-operator",
+												"role":      "data",
+												"name":      "test-cluster",
 											},
 										},
 										TopologyKey: "kubernetes.io/hostname",
@@ -111,9 +113,9 @@ func TestGenerateHeadlessService(t *testing.T) {
 		Name: "test-cluster",
 		Annotations: map[string]string{
 			"component": "kafka",
-			"name":      "test-cluster",
+			"creator":   "kafka-operator",
 			"role":      "data",
-			"type":      "service",
+			"name":      "test-cluster",
 		},
 	}
 
