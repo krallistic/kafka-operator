@@ -49,9 +49,9 @@
   revision = "5fa44608f6b9b2180a2fd1ecb52e651fd0397794"
   name = "k8s.io/apiextensions-apiserver"
 
-[[constraint]]
-  version = "v1.7.0"
-  name = "k8s.io/kubernetes"
+#[[constraint]]
+#  version = "v1.7.0"
+#  name = "k8s.io/kubernetes"
 
 [[constraint]]
   revision = "c79c13d131b0a8f42d05faa6491c12e94ccc6f30"
