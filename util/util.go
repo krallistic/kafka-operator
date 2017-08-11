@@ -660,7 +660,11 @@ func (c *ClientUtil) CreatePersistentVolumesTODODELETE(cluster spec.Kafkacluster
 }
 
 func (c *ClientUtil) DeleteKafkaCluster(cluster spec.Kafkacluster) error {
-
+	methodLogger := logger.WithFields(log.Fields{
+		"method": "DeleteKafkaCluster",
+	})
+	methodLogger = EnrichSpecWithLogger(methodLogger, cluster)
+	methodLogger.Info("Deleting KafkaCluster")
 	var gracePeriod int64
 	gracePeriod = 10
 	//var orphan bool
@@ -672,12 +676,24 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.Kafkacluster) error {
 	//Delete Services
 	err := c.KubernetesClient.Services(cluster.ObjectMeta.Namespace).Delete(cluster.ObjectMeta.Name, &deleteOption)
 	if err != nil {
-		fmt.Println("Error while deleting Broker Service: ", err)
+		methodLogger.WithField("error", err).Warn("Error while deleting Broker Service: ")
+	}
+
+	//Delete direkt brokers services
+	brokerCount := cluster.Spec.BrokerCount
+	for i := 0; i < int(brokerCount); i++ {
+
+		serviceName := cluster.ObjectMeta.Name + "-broker-" + strconv.Itoa(i)
+		//Delete Services
+		err := c.KubernetesClient.Services(cluster.ObjectMeta.Namespace).Delete(serviceName, &deleteOption)
+		if err != nil {
+			methodLogger.WithField("error", err).Warn("Error while deleting Broker Service: ")
+		}
 	}
 
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.ObjectMeta.Namespace).Get(cluster.ObjectMeta.Name, c.DefaultOption) //Scaling Replicas down to Zero
 	if (len(statefulSet.Name) == 0) && (err != nil) {
-		fmt.Println("Error while getting StS from k8s: ", err)
+		methodLogger.WithField("error", err).Error("Error while getting StS from k8s: ")
 		return err
 	}
 
@@ -687,7 +703,7 @@ func (c *ClientUtil) DeleteKafkaCluster(cluster spec.Kafkacluster) error {
 
 	_, err = c.KubernetesClient.StatefulSets(cluster.ObjectMeta.Namespace).Update(statefulSet)
 	if err != nil {
-		fmt.Println("Error while scaling down Broker Sts: ", err)
+		methodLogger.WithField("error", err).Error("Error while scaling down Broker Sts: ")
 		return err
 	}
 	//Delete Volumes

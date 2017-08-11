@@ -170,6 +170,7 @@ func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 
 	case spec.DELETE_CLUSTER:
 		methodLogger.WithField("event-type", spec.DELETE_CLUSTER).Info("Delete Cluster, deleting all Objects ")
+		p.util.DeleteOffsetMonitor(currentEvent.Cluster)
 		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
 			//Error while deleting, just resubmit event after wait time.
 			p.sleep30AndSendEvent(currentEvent)
@@ -185,7 +186,6 @@ func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 			}
 			p.clusterEvents <- clusterEvent
 		}()
-		p.util.DeleteOffsetMonitor(currentEvent.Cluster)
 		clustersTotal.Dec()
 		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
@@ -336,4 +336,5 @@ func (p *Processor) CreateKafkaCluster(clusterSpec spec.Kafkacluster) {
 	if err != nil {
 		methodLogger.WithField("error", err).Fatal("Cant deploy stats exporter")
 	}
+
 }
