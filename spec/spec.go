@@ -59,7 +59,8 @@ type KafkaclusterState struct {
 
 //BrokerState contains state about brokers
 type BrokerState struct {
-	ID string `json:"id,omitempty"`
+	ID    string `json:"id,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 //KafkaclusterScale represent the `scale` field inside the crd
