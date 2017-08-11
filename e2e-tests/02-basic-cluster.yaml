@@ -1,10 +1,9 @@
-apiVersion: "incubator.test.com/v1"
-kind: "KafkaCluster"
+apiVersion: "krallistic.github.com/v1"
+kind: "Kafkacluster"
 metadata:
   name: test-cluster-1
-  namespace: test
 spec:
-    brokerCount: 2
+    brokerCount: 3
     topics:
       - name: "test1"
         replicationFactor: 1
