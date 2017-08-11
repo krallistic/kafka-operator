@@ -1,17 +1,17 @@
 #!/usr/bin/env bats
 
-load "kubernetes_helper"
+load "hack/kubernetes_helper"
 
 
 setup() {
   echo "Setup"
-  kubectl apply -f kafka-operator.yaml
-  sleep 60
+  kubectl apply -f files/kafka-operator.yaml
+    wait_for_operator_running_or_fail
 }
 
 teardown() {
   echo "Teardown"
-  kubectl delete -f kafka-operator.yaml
+  kubectl delete -f files/kafka-operator.yaml
 
 }
 

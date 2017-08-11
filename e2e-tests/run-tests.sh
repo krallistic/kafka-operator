@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-source ./setup-gcloud-cluster.sh
+source hack/setup-gcloud-cluster.sh
 
+bats 01-test-basic-setup.bats
 
-
-source ./delete-gcloud-cluser.sh
+source hack/delete-gcloud-cluser.sh

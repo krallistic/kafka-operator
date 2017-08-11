@@ -8,7 +8,8 @@ gcloud container clusters create kafka-operator-test-cluster \
     --machine-type n1-standard-2 \
     --scopes storage-rw \
     --preemptible \
-    --cluster-version=1.7.0 \
-    --no-async
+    --cluster-version=1.7.2 \
+    --no-async \
+    --enable-kubernetes-alpha
 
 gcloud container clusters get-credentials kafka-operator-test-cluster
