@@ -3,7 +3,7 @@
 
 .PHONY: all build container push deploy clean test
 
-TAG ?= v0.0.3
+TAG ?= v0.2.0
 PREFIX ?= krallistic
 
 all: push

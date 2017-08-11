@@ -21,7 +21,9 @@ suite-teardown() {
     echo "Global Teardown"
     kubectl delete -f files/02-basic-cluster.yaml
     kubectl delete -f files/manual-zookeeper.yaml
+    #TODO wait till sts is fully deleted
     kubectl delete -f files/kafka-operator.yaml
+    kubectl delete statefulset test-cluster-1
   fi
 }
 
