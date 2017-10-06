@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/krallistic/kafka-operator/spec"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -15,8 +16,8 @@ import (
 
 const (
 	deplyomentPrefix      = "kafka-offset-checker"
-	offsetExporterImage   = "krallistic/kafka_exporter" //TODO
-	offsetExporterVersion = "v0.1.0"                    //TODO make version cmd arg
+	offsetExporterImage   = "braedon/prometheus-kafka-consumer-group-exporter" //TODO
+	offsetExporterVersion = "0.2.0"                                            //TODO make version cmd arg
 
 	prometheusScrapeAnnotation = "prometheus.io/scrape"
 	prometheusPortAnnotation   = "prometheus.io/port"
@@ -58,6 +59,7 @@ func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *apps
 			"type":      "service",
 		},
 	}
+	brokerList := strings.Join(GetBrokerAdressess(cluster), ",")
 
 	deploy := &appsv1Beta1.Deployment{
 		ObjectMeta: objectMeta,
@@ -70,29 +72,15 @@ func (c *ClientUtil) GenerateExporterDeployment(cluster spec.Kafkacluster) *apps
 						v1.Container{
 							Name:  "offset-exporter",
 							Image: offsetExporterImage + ":" + offsetExporterVersion,
+							//Command: ["python", "-u", "/usr/local/bin/prometheus-kafka-consumer-group-exporter"],
+							Args: []string{
+								"--port=8080",
+								"--bootstrap-brokers=" + brokerList,
+							},
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
-									Name: "prometheus",
-									//TODO configPort
+									Name:          "prometheus",
 									ContainerPort: 8080,
-								},
-							},
-							Env: []v1.EnvVar{
-								v1.EnvVar{
-									Name:  "CLUSTER_NAME",
-									Value: cluster.ObjectMeta.Name,
-								},
-								v1.EnvVar{
-									Name:  "ZOOKEEPER_CONNECT",
-									Value: cluster.Spec.ZookeeperConnect,
-								},
-								v1.EnvVar{
-									Name:  "LISTEN_ADDRESS",
-									Value: ":8080",
-								},
-								v1.EnvVar{
-									Name:  "TELEMETRY_PATH",
-									Value: "/metrics",
 								},
 							},
 						},

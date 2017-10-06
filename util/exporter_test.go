@@ -21,7 +21,7 @@ func TestGenerateExporterDeployment(t *testing.T) {
 		},
 		Spec: spec.KafkaclusterSpec{
 			Image:            "testImage",
-			BrokerCount:      3,
+			BrokerCount:      1,
 			JmxSidecar:       false,
 			ZookeeperConnect: "testZookeeperConnect",
 		},
@@ -61,29 +61,15 @@ func TestGenerateExporterDeployment(t *testing.T) {
 						v1.Container{
 							Name:  "offset-exporter",
 							Image: offsetExporterImage + ":" + offsetExporterVersion,
+							Args: []string{
+								"--port=8080",
+								"--bootstrap-brokers=" + "test-cluster-0.test-cluster.test.svc.cluster.local:9092",
+							},
 							Ports: []v1.ContainerPort{
 								v1.ContainerPort{
 									Name: "prometheus",
 									//TODO configPort
 									ContainerPort: 8080,
-								},
-							},
-							Env: []v1.EnvVar{
-								v1.EnvVar{
-									Name:  "CLUSTER_NAME",
-									Value: "test-cluster",
-								},
-								v1.EnvVar{
-									Name:  "ZOOKEEPER_CONNECT",
-									Value: "testZookeeperConnect",
-								},
-								v1.EnvVar{
-									Name:  "LISTEN_ADDRESS",
-									Value: ":8080",
-								},
-								v1.EnvVar{
-									Name:  "TELEMETRY_PATH",
-									Value: "/metrics",
 								},
 							},
 						},
