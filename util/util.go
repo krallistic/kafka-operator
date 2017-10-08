@@ -513,7 +513,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.Kafkacluster) *appsv1Beta1.S
 							//TODO String replace operator etc
 							Command: []string{"/bin/bash",
 								"-c",
-								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n"+
+								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092,localhost:9092; \n"+
 									"set -ex\n"+
 									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n"+
 									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n"+

@@ -94,6 +94,22 @@ func (c *ClientUtil) GenerateKafkaOptions(cluster spec.Kafkacluster) []v1.EnvVar
 			Name:  "KAFKA_HEAP_OPTS",
 			Value: c.GetMaxHeapJavaString(cluster),
 		},
+		v1.EnvVar{
+			Name:  "KAFKA_METRIC_REPORTERS",
+			Value: "com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter",
+		},
+		v1.EnvVar{
+			Name:  "KAFKA_CRUISE_CONTROL_METRICS_REPORTER_BOOTSTRAP_SERVER",
+			Value: fmt.Sprintf("%s-0.%s.%s.svc.cluster.local:9092", cluster.GetObjectMeta().GetName(), cluster.GetObjectMeta().GetName(), cluster.GetObjectMeta().GetNamespace()),
+		},
+	}
+
+	if cluster.Spec.BrokerCount < 3 {
+		offset_topic := v1.EnvVar{
+			Name:  "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR",
+			Value: "1",
+		}
+		staticOptions = append(staticOptions, offset_topic)
 	}
 
 	options := append(structOptions, staticOptions...)

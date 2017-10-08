@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
 
 	"github.com/krallistic/kafka-operator/spec"
@@ -16,6 +17,10 @@ func TestGenerateKafkaOptions(t *testing.T) {
 	topicsCreate := true
 	logRetentionBytes := "testLogRetentionTime"
 	testClusterSpec := spec.Kafkacluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test",
+		},
 		Spec: spec.KafkaclusterSpec{
 
 			KafkaOptions: spec.KafkaOptions{
@@ -48,6 +53,18 @@ func TestGenerateKafkaOptions(t *testing.T) {
 		v1.EnvVar{
 			Name:  "KAFKA_HEAP_OPTS",
 			Value: "-Xmx2577M",
+		},
+		v1.EnvVar{
+			Name:  "KAFKA_METRIC_REPORTERS",
+			Value: "com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter",
+		},
+		v1.EnvVar{
+			Name:  "KAFKA_CRUISE_CONTROL_METRICS_REPORTER_BOOTSTRAP_SERVER",
+			Value: "test-cluster-0.test-cluster.test.svc.cluster.local:9092",
+		},
+		v1.EnvVar{
+			Name:  "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR",
+			Value: "1",
 		},
 	}
 
