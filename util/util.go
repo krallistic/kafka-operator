@@ -513,7 +513,7 @@ func (c *ClientUtil) createStsFromSpec(cluster spec.Kafkacluster) *appsv1Beta1.S
 							//TODO String replace operator etc
 							Command: []string{"/bin/bash",
 								"-c",
-								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092,localhost:9092; \n"+
+								fmt.Sprintf("export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname).%s.$(NAMESPACE).svc.cluster.local:9092; \n"+
 									"set -ex\n"+
 									"[[ `hostname` =~ -([0-9]+)$ ]] || exit 1\n"+
 									"export KAFKA_BROKER_ID=${BASH_REMATCH[1]}\n"+
@@ -598,6 +598,22 @@ func (c *ClientUtil) CreatePersistentVolumes(cluster spec.Kafkacluster) error {
 }
 
 func (c *ClientUtil) UpsizeBrokerStS(cluster spec.Kafkacluster) error {
+
+	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.ObjectMeta.Namespace).Get(cluster.ObjectMeta.Name, c.DefaultOption)
+	if err != nil || len(statefulSet.Name) == 0 {
+		return err
+	}
+	statefulSet.Spec.Replicas = &cluster.Spec.BrokerCount
+	_, err = c.KubernetesClient.StatefulSets(cluster.ObjectMeta.Namespace).Update(statefulSet)
+
+	if err != nil {
+		fmt.Println("Error while updating Broker Count")
+	}
+
+	return err
+}
+
+func (c *ClientUtil) DownsizeBrokerStS(cluster spec.Kafkacluster) error {
 
 	statefulSet, err := c.KubernetesClient.StatefulSets(cluster.ObjectMeta.Namespace).Get(cluster.ObjectMeta.Name, c.DefaultOption)
 	if err != nil || len(statefulSet.Name) == 0 {
