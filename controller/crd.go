@@ -32,7 +32,7 @@ import (
 
 var (
 	logger = log.WithFields(log.Fields{
-		"package": "controller/tpr",
+		"package": "controller/crd",
 	})
 )
 
