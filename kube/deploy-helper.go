@@ -107,6 +107,7 @@ func (k *Kubernetes) DeleteDeployment(deployment *appsv1Beta1.Deployment) error 
 		}
 	} else {
 		methodLogger.Debug("Trying to delete but Deployment dosnt exist.")
+		return nil
 
 	}
 	return nil

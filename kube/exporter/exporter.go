@@ -6,10 +6,10 @@ import (
 	"github.com/krallistic/kafka-operator/kube"
 	"github.com/krallistic/kafka-operator/spec"
 	util "github.com/krallistic/kafka-operator/util"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
+	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 )
 
 const (
@@ -127,10 +127,6 @@ func DeployOffsetMonitor(cluster spec.Kafkacluster, client kube.Kubernetes) erro
 
 	return err
 }
-
-//
-//
-//
 func DeleteOffsetMonitor(cluster spec.Kafkacluster, client kube.Kubernetes) error {
 	deployment := generateExporterDeployment(cluster)
 	svc := generateExporterService(cluster)
