@@ -27,3 +27,7 @@ _testmain.go
 
 #Do we need to push vendor? manifest.json should be determinist enough.
 vendor/
+
+.vscode/
+bin/
+Gopkg.lock
