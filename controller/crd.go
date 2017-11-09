@@ -50,9 +50,10 @@ type CustomResourceController struct {
 	ApiExtensionsClient *apiextensionsclient.Clientset
 	DefaultOption       metav1.GetOptions
 	crdClient           *rest.RESTClient
+	namespace           string
 }
 
-func New(kubeConfigFile, masterHost string) (*CustomResourceController, error) {
+func New(kubeConfigFile, masterHost string, namespace string) (*CustomResourceController, error) {
 	methodLogger := logger.WithFields(log.Fields{"method": "New"})
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
@@ -77,24 +78,31 @@ func New(kubeConfigFile, masterHost string) (*CustomResourceController, error) {
 		}).Error("Could not initialize CustomResourceDefinition Kafkacluster cLient")
 		return nil, err
 	}
+	var ns string
+	if namespace == "" {
+		ns = v1.NamespaceAll
+	} else {
+		ns = namespace
+	}
 
 	k := &CustomResourceController{
 		crdClient:           crdClient,
 		ApiExtensionsClient: apiextensionsclientset,
+		namespace:           ns,
 	}
 	methodLogger.Info("Initilized CustomResourceDefinition Kafkacluster cLient")
 
 	return k, nil
 }
 
-func (*CustomResourceController) Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaclusterWatchEvent, signalChannel chan int) {
+func (c *CustomResourceController) Watch(client *rest.RESTClient, eventsChannel chan spec.KafkaclusterWatchEvent, signalChannel chan int) {
 	methodLogger := logger.WithFields(log.Fields{"method": "Watch"})
 
 	stop := make(chan struct{}, 1)
 	source := cache.NewListWatchFromClient(
 		client,
 		spec.CRDRessourcePlural,
-		v1.NamespaceAll,
+		c.namespace,
 		fields.Everything())
 
 	store, controller := cache.NewInformer(

@@ -51,7 +51,7 @@ func init() {
 
 	flag.StringVar(&metricListenAddress, "listen-address", ":9090", "The address to listen on for HTTP requests.")
 	flag.StringVar(&metricListenPath, "metric-path", "/metrics", "Path under which the the prometheus metrics can be found")
-	flag.StringVar(&namespace, "namespace", nil, "Namespace on which the operator listens to CR, if not set then all Namespaces will be used")
+	flag.StringVar(&namespace, "namespace", "", "Namespace on which the operator listens to CR, if not set then all Namespaces will be used")
 	flag.Parse()
 }
 
@@ -115,7 +115,7 @@ func Main() int {
 		return 1
 	}
 
-	cdrClient, err := controller.New(kubeConfigFile, masterHost)
+	cdrClient, err := controller.New(kubeConfigFile, masterHost, namespace)
 	if err != nil {
 		logger.WithFields(log.Fields{
 			"error":      err,
