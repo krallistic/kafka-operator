@@ -13,6 +13,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/krallistic/kafka-operator/kube"
 	"github.com/krallistic/kafka-operator/processor"
 	"github.com/krallistic/kafka-operator/util"
 
@@ -32,6 +33,8 @@ var (
 
 	logLevel string
 
+	namespace string
+
 	logger = log.WithFields(log.Fields{
 		"package": "main",
 	})
@@ -48,6 +51,7 @@ func init() {
 
 	flag.StringVar(&metricListenAddress, "listen-address", ":9090", "The address to listen on for HTTP requests.")
 	flag.StringVar(&metricListenPath, "metric-path", "/metrics", "Path under which the the prometheus metrics can be found")
+	flag.StringVar(&namespace, "namespace", nil, "Namespace on which the operator listens to CR, if not set then all Namespaces will be used")
 	flag.Parse()
 }
 
@@ -101,6 +105,16 @@ func Main() int {
 		return 1
 	}
 
+	kube, err := kube.New(kubeConfigFile, masterHost)
+	if err != nil {
+		logger.WithFields(log.Fields{
+			"error":      err,
+			"configFile": kubeConfigFile,
+			"masterHost": masterHost,
+		}).Fatal("Error initilizing kubernetes client ")
+		return 1
+	}
+
 	cdrClient, err := controller.New(kubeConfigFile, masterHost)
 	if err != nil {
 		logger.WithFields(log.Fields{
@@ -112,16 +126,14 @@ func Main() int {
 	}
 
 	cdrClient.CreateCustomResourceDefinition()
-	//TODO wait till TPR really exist
 
-	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *cdrClient, controlChannel)
+	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *cdrClient, controlChannel, *kube)
 	processor.Run()
 
 	http.Handle(metricListenPath, promhttp.Handler())
 	//Blocking ListenAndServer, so we dont exit
 	logger.Fatal(http.ListenAndServe(metricListenAddress, nil))
 	logger.Info("Exiting now")
-	//TODO Eventually cleanup?
 
 	return 0
 }
