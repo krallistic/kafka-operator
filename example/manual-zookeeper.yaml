@@ -10,6 +10,8 @@ spec:
     name: server
   - port: 3888
     name: leader-election
+  - port: 2181
+    name: client
   clusterIP: None
   selector:
     app: zk
