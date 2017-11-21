@@ -1,62 +1,46 @@
 
-# Gopkg.toml example
-#
-# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
-# for detailed Gopkg.toml documentation.
-#
-# required = ["github.com/user/thing/cmd/thing"]
-# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
-#
-# [[constraint]]
-#   name = "github.com/user/project"
-#   version = "1.0.0"
-#
-# [[constraint]]
-#   name = "github.com/user/project2"
-#   branch = "dev"
-#   source = "github.com/myfork/project2"
-#
-# [[override]]
-#  name = "github.com/x/y"
-#  version = "2.4.0"
+required = ["k8s.io/code-generator/cmd/client-gen"]
 
-
-[[constraint]]
-  name = "github.com/Shopify/sarama"
-  version = "1.12.0"
-
-[[constraint]]
-  name = "github.com/Sirupsen/logrus"
-  version = "1.0.2"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/azer/snakecase"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/google/gofuzz"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/krallistic/kazoo-go"
-
-[[constraint]]
-  revision = "cc44961f935a644fb82c0f4b6591543704578db7"
-  name = "k8s.io/client-go"
-
-[[constraint]]
-  revision = "5fa44608f6b9b2180a2fd1ecb52e651fd0397794"
-  name = "k8s.io/apiextensions-apiserver"
 
 #[[constraint]]
-#  version = "v1.7.0"
-#  name = "k8s.io/kubernetes"
+#  name = "github.com/Shopify/sarama"
+#  version = "1.12.0"
+
+#[[constraint]]
+#  name = "github.com/Sirupsen/logrus"
+#  version = "1.0.2"
+
+#[[constraint]]
+#  branch = "master"
+#  name = "github.com/azer/snakecase"
+
+#[[constraint]]
+#  branch = "master"
+#  name = "github.com/google/gofuzz"
+
+#[[constraint]]
+#  branch = "master"
+#  name = "github.com/krallistic/kazoo-go"
 
 [[constraint]]
-  revision = "c79c13d131b0a8f42d05faa6491c12e94ccc6f30"
-  name = "k8s.io/gengo"
-
-[[constraint]]
-  revision = "abe34e4f5b4413c282a83011892cbeea5b32223b"
   name = "k8s.io/apimachinery"
+  branch = "release-1.8"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "5.0.0"
+
+ [[constraint]]
+  name = "k8s.io/api"
+  branch = "release-1.8"
+
+[[constraint]]
+  name = "k8s.io/code-generator"
+  branch = "release-1.8"
+
+# goland/dep does not follow k8s.io/code-generator's Godeps.json and gengo's master
+# version does not work with release-1.8 k8s.io/code-generator. So we have to
+# override it.
+#[[override]]
+#  name = "k8s.io/gengo"
+#  revision = "9e661e9308f078838e266cca1c673922088c0ea4"
