@@ -324,17 +324,26 @@ type KafkaclusterEvent struct {
 type KafkaEventType int32
 
 const (
+	//Event when a new CR Object is detected and a cluster needs to be created.
 	NEW_CLUSTER KafkaEventType = iota + 1
+	//Event when a deletion of a CR Object is detected. Deletion of that Cluster is initiatated
 	DELETE_CLUSTER
+	//Event when a CR Object is changed and currentReplicas < DesisredReplicas. Creating new node and trigger an rebalance.
 	UPSIZE_CLUSTER
+	//CR Object changed, current > desired. Initiating Rebalancing.
 	DOWNSIZE_CLUSTER
+	//Different Image of the Broker, Update Chain
 	CHANGE_IMAGE
+	//Different Broker Ressource, Rolling Update
 	CHANGE_BROKER_RESOURCES
+
 	CHANGE_NAME
 	CHANGE_ZOOKEEPER_CONNECT
+	//Different Broker Config, Rolling Update.
 	BROKER_CONFIG_CHANGE
 	UNKNOWN_CHANGE
-	DOWNSIZE_EVENT
+
+	DOWNSIZE__EVENT
 	//Cleanup event which get emmised after a Cluster Delete.
 	//Its ensure the deletion of the Statefulset after it has been scaled down.
 	CLEANUP_EVENT

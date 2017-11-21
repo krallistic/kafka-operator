@@ -10,7 +10,7 @@ import (
 	"github.com/azer/snakecase"
 	"github.com/krallistic/kafka-operator/spec"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
 )
 
 var ()

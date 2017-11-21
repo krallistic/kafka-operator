@@ -7,6 +7,9 @@ import (
 	"github.com/google/gofuzz"
 
 	apitesting "k8s.io/apimachinery/pkg/api/testing"
+	fuzzer "k8s.io/apimachinery/pkg/api/testing/fuzzer"
+	roundtrip "k8s.io/apimachinery/pkg/api/testing/roundtrip"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -39,9 +42,9 @@ func TestRoundTrip(t *testing.T) {
 	AddToScheme(scheme)
 
 	seed := rand.Int63()
-	fuzzerFuncs := apitesting.MergeFuzzerFuncs(t, apitesting.GenericFuzzerFuncs(t, codecs), exampleFuzzerFuncs(t))
-	fuzzer := apitesting.FuzzerFor(fuzzerFuncs, rand.NewSource(seed))
+	fuzzerFuncs := fuzzer.MergeFuzzerFuncs(t, fuzzer.GenericFuzzerFuncs(t, codecs), exampleFuzzerFuncs(t))
+	fuzzer := fuzzer.FuzzerFor(fuzzerFuncs, rand.NewSource(seed))
 
-	apitesting.RoundTripSpecificKindWithoutProtobuf(t, SchemeGroupVersion.WithKind("Kafkacluster"), scheme, codecs, fuzzer, nil)
-	apitesting.RoundTripSpecificKindWithoutProtobuf(t, SchemeGroupVersion.WithKind("KafkaclusterList"), scheme, codecs, fuzzer, nil)
+	roundtrip.RoundTripSpecificKindWithoutProtobuf(t, SchemeGroupVersion.WithKind("Kafkacluster"), scheme, codecs, fuzzer, nil)
+	roundtrip.RoundTripSpecificKindWithoutProtobuf(t, SchemeGroupVersion.WithKind("KafkaclusterList"), scheme, codecs, fuzzer, nil)
 }

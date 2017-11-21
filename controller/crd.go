@@ -22,7 +22,7 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
 
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
@@ -302,6 +302,5 @@ func (c *CustomResourceController) SetKafkaclusterState(cluster spec.Kafkacluste
 	}
 
 	methodLogger.WithField("result", result).Debug("Set state for CRD")
-
 	return err
 }
