@@ -7,9 +7,9 @@ import (
 	"github.com/krallistic/kafka-operator/spec"
 	util "github.com/krallistic/kafka-operator/util"
 
+	appsv1Beta1 "k8s.io/api/apps/v1beta1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 )
 
 const (
@@ -133,12 +133,18 @@ func DeployCruiseControl(cluster spec.Kafkacluster, client kube.Kubernetes) erro
 	return nil
 }
 
-func (c *ClientUtil) DeleteCruiseControl(cluster spec.Kafkacluster) error {
+func DeleteCruiseControl(cluster spec.Kafkacluster, client kube.Kubernetes) error {
 	deployment := generateCruiseControlDeployment(cluster)
 	svc := generateCruiseControlService(cluster)
 
-	client.DeleteDeployment(deployment)
-	client.DeleteService(svc)
+	err := client.DeleteDeployment(deployment)
+	if err != nil {
+		return err
+	}
+	err = client.DeleteService(svc)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
