@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/krallistic/kafka-operator/spec"
+	"github.com/kylelemons/godebug/pretty"
+	appsv1Beta1 "k8s.io/api/apps/v1beta1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 )
 
 func TestCreateStsFromSpec(t *testing.T) {
@@ -152,4 +153,124 @@ func TestGenerateHeadlessService(t *testing.T) {
 	if !reflect.DeepEqual(result, expectedResult) {
 		t.Fatalf("results were not equal", result, expectedResult)
 	}
+}
+
+func TestGenerateDirectBrokerService(t *testing.T) {
+
+	spec := spec.Kafkacluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test",
+		},
+		Spec: spec.KafkaclusterSpec{
+			Image:            "testImage",
+			BrokerCount:      3,
+			JmxSidecar:       false,
+			ZookeeperConnect: "testZookeeperConnect",
+		},
+	}
+	expectedResult := []*v1.Service{
+		&v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cluster-broker-0",
+				Annotations: map[string]string{
+					"component":       "kafka",
+					"creator":         "kafka-operator",
+					"role":            "data",
+					"name":            "test-cluster",
+					"kafka_broker_id": "0",
+				},
+				Namespace: "test",
+			},
+			Spec: v1.ServiceSpec{
+				Selector: map[string]string{
+					"component":       "kafka",
+					"creator":         "kafka-operator",
+					"role":            "data",
+					"name":            "test-cluster",
+					"kafka_broker_id": "0",
+				},
+				Ports: []v1.ServicePort{
+					v1.ServicePort{
+						Name: "broker",
+						Port: 9092,
+					},
+				},
+				Type: "ClusterIP",
+			},
+		},
+		&v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cluster-broker-1",
+				Annotations: map[string]string{
+					"component":       "kafka",
+					"creator":         "kafka-operator",
+					"role":            "data",
+					"name":            "test-cluster",
+					"kafka_broker_id": "1",
+				},
+				Namespace: "test",
+			},
+
+			Spec: v1.ServiceSpec{
+				Selector: map[string]string{
+					"component":       "kafka",
+					"creator":         "kafka-operator",
+					"role":            "data",
+					"name":            "test-cluster",
+					"kafka_broker_id": "1",
+				},
+				Ports: []v1.ServicePort{
+					v1.ServicePort{
+						Name: "broker",
+						Port: 9092,
+					},
+				},
+				Type: "ClusterIP",
+			},
+		},
+		&v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cluster-broker-2",
+				Annotations: map[string]string{
+					"component":       "kafka",
+					"creator":         "kafka-operator",
+					"role":            "data",
+					"name":            "test-cluster",
+					"kafka_broker_id": "2",
+				},
+				Namespace: "test",
+			},
+
+			Spec: v1.ServiceSpec{
+				Selector: map[string]string{
+					"component":       "kafka",
+					"creator":         "kafka-operator",
+					"role":            "data",
+					"name":            "test-cluster",
+					"kafka_broker_id": "2",
+				},
+				Ports: []v1.ServicePort{
+					v1.ServicePort{
+						Name: "broker",
+						Port: 9092,
+					},
+				},
+				Type: "ClusterIP",
+			},
+		},
+	}
+
+	result := generateDirectBrokerServices(spec)
+	if result == nil {
+		t.Fatalf("return value should not be nil", result)
+	}
+
+	if diff := pretty.Compare(result, expectedResult); diff != "" {
+		t.Errorf("%s: diff: (-got +want)\n%s", diff)
+	}
+	if !reflect.DeepEqual(result, expectedResult) {
+		t.Fatalf("results were not equal", result, expectedResult)
+	}
+
 }

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/krallistic/kafka-operator/kube"
 	"github.com/krallistic/kafka-operator/spec"
 
+	appsv1Beta1 "k8s.io/api/apps/v1beta1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 )
 
 const (
@@ -243,7 +244,6 @@ func generateHeadlessService(cluster spec.Kafkacluster) *v1.Service {
 }
 
 func generateDirectBrokerServices(cluster spec.Kafkacluster) []*v1.Service {
-
 	var services []*v1.Service
 
 	for i := 0; i < int(cluster.Spec.BrokerCount); i++ {
@@ -260,7 +260,7 @@ func generateDirectBrokerServices(cluster spec.Kafkacluster) []*v1.Service {
 		service := &v1.Service{
 			ObjectMeta: objectMeta,
 			Spec: v1.ServiceSpec{
-				Type:     v1.ServiceTypeNodePort,
+				Type:     v1.ServiceTypeClusterIP,
 				Selector: labelSelectors,
 				Ports: []v1.ServicePort{
 					v1.ServicePort{
@@ -275,4 +275,76 @@ func generateDirectBrokerServices(cluster spec.Kafkacluster) []*v1.Service {
 	}
 
 	return services
+}
+
+func DeleteCluster(cluster spec.Kafkacluster, client kube.Kubernetes) error {
+	cluster.Spec.BrokerCount = 0
+	sts := generateKafkaStatefulset(cluster)
+	//Downsize Statefulset to 0
+	err := client.CreateOrUpdateStatefulSet(sts)
+	if err != nil {
+		return err
+	}
+	//Delete Headless SVC
+	headlessSVC := generateHeadlessService(cluster)
+	err = client.DeleteService(headlessSVC)
+	if err != nil {
+		return err
+	}
+
+	//Delete Direct Broker SVCs
+	svcs := generateDirectBrokerServices(cluster)
+	for _, svc := range svcs {
+		err = client.DeleteService(svc)
+		if err != nil {
+			return err
+		}
+	}
+
+	//Force Delete of Statefulset
+	err = client.DeleteStatefulset(sts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CreateCluster(cluster spec.Kafkacluster, client kube.Kubernetes) error {
+	//Create Headless SVC
+	headlessSVC := generateHeadlessService(cluster)
+	err := client.CreateOrUpdateService(headlessSVC)
+	if err != nil {
+		return err
+	}
+
+	sts := generateKafkaStatefulset(cluster)
+	//Create Broker Cluster
+	err = client.CreateOrUpdateStatefulSet(sts)
+	if err != nil {
+		return err
+	}
+
+	//CreateDelete Direct Broker SVCs
+	svcs := generateDirectBrokerServices(cluster)
+	for _, svc := range svcs {
+		err = client.CreateOrUpdateService(svc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func UpsizeCluster(cluster spec.Kafkacluster, client kube.Kubernetes) error {
+	return nil
+}
+
+func DownsizeCluster(cluster spec.Kafkacluster, client kube.Kubernetes) error {
+	return nil
+}
+
+func UpdateStatus(cluster spec.Kafkacluster, client kube.Kubernetes) error {
+	return nil
 }
