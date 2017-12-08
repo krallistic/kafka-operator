@@ -44,3 +44,8 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 #[[override]]
 #  name = "k8s.io/gengo"
 #  revision = "9e661e9308f078838e266cca1c673922088c0ea4"
+
+
+[[constraint]]
+  name = "github.com/kylelemons/godebug"
+  
