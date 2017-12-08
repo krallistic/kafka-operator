@@ -9,6 +9,8 @@ import (
 
 	"github.com/krallistic/kafka-operator/spec"
 
+	cruisecontrol_kube "github.com/krallistic/kafka-operator/kube/cruisecontrol"
+
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -67,7 +69,7 @@ func GetCruiseControlStatus(url string) (string, error) {
 	return sBody, nil
 }
 
-func DownsizeCluster(cluster spec.Kafkacluster, brokerToDelete string) {
+func DownsizeCluster(cluster spec.Kafkacluster, brokerToDelete string) error {
 	methodLogger := log.WithFields(log.Fields{
 		"method":    "DownsizeCluster",
 		"name":      cluster.ObjectMeta.Name,
@@ -75,21 +77,25 @@ func DownsizeCluster(cluster spec.Kafkacluster, brokerToDelete string) {
 	})
 	//TODO generate Cluster CruiseControl Service URL
 	//
-	cruiseControlURL := "TODO"
+
+	cruiseControlURL := "http://" + cruisecontrol_kube.GetCruiseControlName(cluster) + "." + cluster.ObjectMeta.Namespace + ".svc.cluster.local:9095"
 
 	options := map[string]string{
 		"brokerid": brokerToDelete,
 		"dryrun":   "false",
 	}
 
-	_, err := PostCruiseControl(cruiseControlURL, removeBrokerAction, options)
+	rsp, err := postCruiseControl(cruiseControlURL, removeBrokerAction, options)
 	if err != nil {
 		methodLogger.Error("Cant downsize cluster since post to cc failed")
 		//TODO do-something?
+		return err
 	}
+	methodLogger.WithField("response", rsp).Info("Initiated Dowsize to cruise control")
+	return nil
 }
 
-func PostCruiseControl(url string, action string, options map[string]string) (*http.Response, error) {
+func postCruiseControl(url string, action string, options map[string]string) (*http.Response, error) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":         "callCruiseControl",
 		"request-url":    url,
@@ -106,7 +112,7 @@ func PostCruiseControl(url string, action string, options map[string]string) (*h
 	requestURl := url + "/" + basePath + "/" + action + "?" + optionURL
 	rsp, err := http.Post(requestURl, "text/plain", nil)
 	if err != nil {
-		methodLogger.Error("Error while talking to cruise-control")
+		methodLogger.WithField("error", err).Error("Error while talking to cruise-control")
 		return nil, err
 	}
 	if rsp.StatusCode != 200 {
