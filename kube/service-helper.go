@@ -1,20 +1,21 @@
 package kube
 
 import (
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
 
 	log "github.com/Sirupsen/logrus"
 )
 
 func (k *Kubernetes) updateService(service *v1.Service) error {
-	_, err := k.Client.Services(service.ObjectMeta.Namespace).Update(service)
+
+	_, err := k.Client.Core().Services(service.ObjectMeta.Namespace).Update(service)
 	return err
 }
 
 func (k *Kubernetes) createService(service *v1.Service) error {
-	_, err := k.Client.Services(service.ObjectMeta.Namespace).Create(service)
+	_, err := k.Client.Core().Services(service.ObjectMeta.Namespace).Create(service)
 
 	return err
 }
@@ -26,7 +27,7 @@ func (k *Kubernetes) deleteService(service *v1.Service) error {
 	deleteOption := metav1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 	}
-	err := k.Client.Services(service.ObjectMeta.Namespace).Delete(service.ObjectMeta.Name, &deleteOption)
+	err := k.Client.Core().Services(service.ObjectMeta.Namespace).Delete(service.ObjectMeta.Name, &deleteOption)
 	return err
 }
 
@@ -37,7 +38,7 @@ func (k *Kubernetes) serviceExists(service *v1.Service) (bool, error) {
 		"namespace": service.ObjectMeta.Namespace,
 	})
 	namespace := service.ObjectMeta.Namespace
-	svc, err := k.Client.Services(namespace).Get(service.ObjectMeta.Name, k.DefaultOption)
+	svc, err := k.Client.Core().Services(namespace).Get(service.ObjectMeta.Name, k.DefaultOption)
 
 	if err != nil {
 		if errors.IsNotFound(err) {

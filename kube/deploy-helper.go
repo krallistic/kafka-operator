@@ -3,7 +3,7 @@ package kube
 import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
+	appsv1Beta1 "k8s.io/api/apps/v1beta1"
 
 	log "github.com/Sirupsen/logrus"
 )

@@ -3,9 +3,9 @@ package kube
 import (
 	"time"
 
+	appsv1Beta1 "k8s.io/api/apps/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	appsv1Beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -18,7 +18,7 @@ func (k *Kubernetes) updateStatefulSet(statefulset *appsv1Beta1.StatefulSet) err
 
 func (k *Kubernetes) deleteStatefulSet(statefulset *appsv1Beta1.StatefulSet) error {
 	var gracePeriod int64
-	gracePeriod = 10
+	gracePeriod = 1
 
 	deleteOption := metav1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
@@ -103,7 +103,7 @@ func (k *Kubernetes) DeleteStatefulset(statefulset *appsv1Beta1.StatefulSet) err
 			methodLogger.WithField("error", err).Warn("Error while scaling statefulset down to 0, ignoring since deleting afterwards")
 		}
 		methodLogger.Info("Sleeping 15s per Broker to let Statefulset scale down ")
-		time.Sleep(time.Duration(statefulset.Spec.Replicas) * time.Second * 15)
+		time.Sleep(time.Duration(int(*statefulset.Spec.Replicas)) * time.Second * 15)
 		err = k.deleteStatefulSet(statefulset)
 		if err != nil {
 			methodLogger.WithField("error", err).Error("Can delete statefulset")
