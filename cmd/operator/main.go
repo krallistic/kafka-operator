@@ -15,7 +15,6 @@ import (
 
 	"github.com/krallistic/kafka-operator/kube"
 	"github.com/krallistic/kafka-operator/processor"
-	"github.com/krallistic/kafka-operator/util"
 
 	"github.com/krallistic/kafka-operator/controller"
 )
@@ -95,16 +94,6 @@ func Main() int {
 		}
 	}()
 
-	k8sclient, err := util.New(kubeConfigFile, masterHost)
-	if err != nil {
-		logger.WithFields(log.Fields{
-			"error":      err,
-			"configFile": kubeConfigFile,
-			"masterHost": masterHost,
-		}).Fatal("Error initilizing kubernetes client ")
-		return 1
-	}
-
 	kube, err := kube.New(kubeConfigFile, masterHost)
 	if err != nil {
 		logger.WithFields(log.Fields{
@@ -127,7 +116,7 @@ func Main() int {
 
 	cdrClient.CreateCustomResourceDefinition()
 
-	processor, err := processor.New(*k8sclient.KubernetesClient, image, *k8sclient, *cdrClient, controlChannel, *kube)
+	processor, err := processor.New(image, *cdrClient, controlChannel, *kube)
 	processor.Run()
 
 	http.Handle(metricListenPath, promhttp.Handler())

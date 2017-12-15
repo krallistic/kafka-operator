@@ -5,17 +5,19 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+
 	"github.com/krallistic/kafka-operator/controller"
 	"github.com/krallistic/kafka-operator/kafka"
+	"github.com/krallistic/kafka-operator/kube"
 	spec "github.com/krallistic/kafka-operator/spec"
-	"github.com/krallistic/kafka-operator/util"
-	k8sclient "k8s.io/client-go/kubernetes"
+
+	cruisecontrol_kube "github.com/krallistic/kafka-operator/kube/cruisecontrol"
+	exporter_kube "github.com/krallistic/kafka-operator/kube/exporter"
+	kafka_kube "github.com/krallistic/kafka-operator/kube/kafka"
 )
 
 type Processor struct {
-	client             k8sclient.Clientset
 	baseBrokerImage    string
-	util               util.ClientUtil
 	crdController      controller.CustomResourceController
 	kafkaClusters      map[string]*spec.Kafkacluster
 	watchEventsChannel chan spec.KafkaclusterWatchEvent
@@ -23,13 +25,16 @@ type Processor struct {
 	kafkaClient        map[string]*kafka.KafkaUtil
 	control            chan int
 	errors             chan error
+	kube               kube.Kubernetes
 }
 
-func New(client k8sclient.Clientset, image string, util util.ClientUtil, crdClient controller.CustomResourceController, control chan int) (*Processor, error) {
+func New(image string,
+	crdClient controller.CustomResourceController,
+	control chan int,
+	kube kube.Kubernetes,
+) (*Processor, error) {
 	p := &Processor{
-		client:             client,
 		baseBrokerImage:    image,
-		util:               util,
 		kafkaClusters:      make(map[string]*spec.Kafkacluster),
 		watchEventsChannel: make(chan spec.KafkaclusterWatchEvent, 100),
 		clusterEvents:      make(chan spec.KafkaclusterEvent, 100),
@@ -37,6 +42,7 @@ func New(client k8sclient.Clientset, image string, util util.ClientUtil, crdClie
 		kafkaClient:        make(map[string]*kafka.KafkaUtil),
 		control:            control,
 		errors:             make(chan error),
+		kube:               kube,
 	}
 	log.Info("Created Processor")
 	return p, nil
@@ -120,7 +126,6 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 		methodLogger.Debug("Cluster Scale different, doing nothing")
 		clusterEvent.Type = spec.SCALE_CHANGE
 		return clusterEvent
-
 	} else if oldCluster.Spec.Image != newCluster.Spec.Image {
 		clusterEvent.Type = spec.CHANGE_IMAGE
 		return clusterEvent
@@ -130,9 +135,10 @@ func (p *Processor) DetectChangeType(event spec.KafkaclusterWatchEvent) spec.Kaf
 	} else if oldCluster.Spec.BrokerCount > newCluster.Spec.BrokerCount {
 		clusterEvent.Type = spec.DOWNSIZE_CLUSTER
 		return clusterEvent
-	} else if p.util.BrokerStatefulSetExist(event.Object) {
+	} else {
 		clusterEvent.Type = spec.UNKNOWN_CHANGE
 		//TODO change to reconsilation event?
+		methodLogger.Error("Unknown Event found")
 		return clusterEvent
 	}
 
@@ -155,27 +161,24 @@ func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 	switch currentEvent.Type {
 	case spec.NEW_CLUSTER:
 		methodLogger.WithField("event-type", spec.NEW_CLUSTER).Info("New CRD added, creating cluster")
+		p.createKafkaCluster(currentEvent.Cluster)
 
-		p.CreateKafkaCluster(currentEvent.Cluster)
+		clustersTotal.Inc()
+		clustersCreated.Inc()
+
+		methodLogger.Info("Init heartbeat type checking...")
+		//TODO rename
 		clusterEvent := spec.KafkaclusterEvent{
 			Cluster: currentEvent.Cluster,
 			Type:    spec.KAKFA_EVENT,
 		}
-
-		methodLogger.Info("Init heartbeat type checking...")
-		clustersTotal.Inc()
-		clustersCreated.Inc()
 		p.sleep30AndSendEvent(clusterEvent)
 		break
 
 	case spec.DELETE_CLUSTER:
 		methodLogger.WithField("event-type", spec.DELETE_CLUSTER).Info("Delete Cluster, deleting all Objects ")
-		p.util.DeleteOffsetMonitor(currentEvent.Cluster)
-		if p.util.DeleteKafkaCluster(currentEvent.Cluster) != nil {
-			//Error while deleting, just resubmit event after wait time.
-			p.sleep30AndSendEvent(currentEvent)
-			break
-		}
+
+		p.deleteKafkaCluster(currentEvent.Cluster)
 
 		go func() {
 			time.Sleep(time.Duration(currentEvent.Cluster.Spec.BrokerCount) * time.Minute)
@@ -190,17 +193,15 @@ func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 		clustersDeleted.Inc()
 	case spec.CHANGE_IMAGE:
 		methodLogger.Info("Change Image Event detected, updating StatefulSet to trigger a new rollout")
-
-		if p.util.UpdateBrokerImage(currentEvent.Cluster) != nil {
-			//Error updating
+		methodLogger.Error("Not Implemented Currently")
+		clustersModified.Inc()
+	case spec.UPSIZE_CLUSTER:
+		methodLogger.Warn("Upsize Cluster, changing StatefulSet with higher Replicas, no Rebalacing")
+		if kafka_kube.UpsizeCluster(currentEvent.Cluster, p.kube) != nil {
 			internalErrors.Inc()
 			p.sleep30AndSendEvent(currentEvent)
 			break
 		}
-		clustersModified.Inc()
-	case spec.UPSIZE_CLUSTER:
-		methodLogger.Warn("Upsize Cluster, changing StatefulSet with higher Replicas, no Rebalacing")
-		p.util.UpsizeBrokerStS(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.UNKNOWN_CHANGE:
 		methodLogger.Warn("Unknown (or unsupported) change occured, doing nothing. Maybe manually check the cluster")
@@ -211,15 +212,10 @@ func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 		brokerToDelete := currentEvent.Cluster.Spec.BrokerCount - 0
 		methodLogger.Info("Downsizing Broker, deleting Data on Broker: ", brokerToDelete)
 
-		err := p.util.SetBrokerState(currentEvent.Cluster, brokerToDelete, spec.EMPTY_BROKER)
-		if err != nil {
-			//just re-try delete event
-			internalErrors.Inc()
-			p.sleep30AndSendEvent(currentEvent)
-			break
-		}
+		//TODO INIT CC Rebalance
 
-		err = p.kafkaClient[p.getClusterUUID(currentEvent.Cluster)].RemoveTopicsFromBrokers(currentEvent.Cluster, brokerToDelete)
+		//TODO wait till rebalcing complete
+		err := kafka_kube.DownsizeCluster(currentEvent.Cluster, p.kube)
 		if err != nil {
 			//just re-try delete event
 			internalErrors.Inc()
@@ -228,45 +224,15 @@ func (p *Processor) processEvent(currentEvent spec.KafkaclusterEvent) {
 		}
 		clustersModified.Inc()
 	case spec.CHANGE_ZOOKEEPER_CONNECT:
-		methodLogger.Warn("Trying to change zookeeper connect, not supported currently")
+		methodLogger.Error("Trying to change zookeeper connect, not supported currently")
 		clustersModified.Inc()
 	case spec.CLEANUP_EVENT:
 		methodLogger.Info("Recieved CleanupEvent, force delete of StatefuleSet.")
-		p.util.CleanupKafkaCluster(currentEvent.Cluster)
+		//p.util.CleanupKafkaCluster(currentEvent.Cluster)
 		clustersModified.Inc()
 	case spec.KAKFA_EVENT:
 		methodLogger.Debug("Kafka Event, heartbeat etc..")
 		p.sleep30AndSendEvent(currentEvent)
-	case spec.DOWNSIZE_EVENT:
-		methodLogger.Info("Got Downsize Event, checking if all Topics are fully replicated and no topic on to delete cluster")
-		//GET CLUSTER TO DELETE
-		toDelete, err := p.util.GetBrokersWithState(currentEvent.Cluster, spec.EMPTY_BROKER)
-		if err != nil {
-			internalErrors.Inc()
-			p.sleep30AndSendEvent(currentEvent)
-		}
-		kafkaClient := p.kafkaClient[p.getClusterUUID(currentEvent.Cluster)]
-		topics, err := kafkaClient.GetTopicsOnBroker(currentEvent.Cluster, int32(toDelete))
-		if len(topics) > 0 {
-			//Move topics from Broker
-			methodLogger.Warn("New Topics found on Broker which should be deleted, moving Topics Off", topics)
-			for _, topic := range topics {
-				kafkaClient.RemoveTopicFromBrokers(currentEvent.Cluster, toDelete, topic)
-			}
-
-			break
-		}
-		if err != nil {
-			internalErrors.Inc()
-			p.sleep30AndSendEvent(currentEvent)
-		}
-		//CHECK if all Topics has been moved off
-		inSync, err := p.kafkaClient[p.getClusterUUID(currentEvent.Cluster)].AllTopicsInSync()
-		if err != nil || !inSync {
-			internalErrors.Inc()
-			p.sleep30AndSendEvent(currentEvent)
-			break
-		}
 
 	}
 }
@@ -308,33 +274,47 @@ func (p *Processor) watchEvents() {
 
 // CreateKafkaCluster with the following components: Service, Volumes, StatefulSet.
 //Maybe move this also into util
-func (p *Processor) CreateKafkaCluster(clusterSpec spec.Kafkacluster) {
+func (p *Processor) createKafkaCluster(clusterSpec spec.Kafkacluster) {
 	methodLogger := log.WithFields(log.Fields{
 		"method":      "CreateKafkaCluster",
 		"clusterName": clusterSpec.ObjectMeta.Name,
 	})
 
-	err := p.util.CreateBrokerStatefulSet(clusterSpec)
+	err := kafka_kube.CreateCluster(clusterSpec, p.kube)
 	if err != nil {
 		methodLogger.WithField("error", err).Fatal("Cant create statefulset")
 	}
 
-	err = p.util.CreateBrokerService(clusterSpec)
-	if err != nil {
-		methodLogger.WithField("error", err).Fatal("Cant create loadbalacend headless service services")
-	}
-
-	err = p.util.CreateDirectBrokerService(clusterSpec)
-	if err != nil {
-		methodLogger.WithField("error", err).Fatal("Cant create direct broker services")
-	}
-	//TODO createVolumes here?
-
 	p.initKafkaClient(clusterSpec)
 
-	err = p.util.DeployOffsetMonitor(clusterSpec)
+	err = exporter_kube.DeployOffsetMonitor(clusterSpec, p.kube)
 	if err != nil {
 		methodLogger.WithField("error", err).Fatal("Cant deploy stats exporter")
 	}
 
+	err = cruisecontrol_kube.DeployCruiseControl(clusterSpec, p.kube)
+	if err != nil {
+		methodLogger.WithField("error", err).Fatal("Cant deploy cruise-control exporter")
+	}
+
+}
+
+func (p *Processor) deleteKafkaCluster(clusterSpec spec.Kafkacluster) error {
+	client := p.kube
+	err := exporter_kube.DeleteOffsetMonitor(clusterSpec, client)
+	if err != nil {
+		return err
+	}
+	err = cruisecontrol_kube.DeleteCruiseControl(clusterSpec, client)
+	if err != nil {
+		//Error while deleting, just resubmit event after wait time.
+		return err
+
+	}
+	err = kafka_kube.DeleteCluster(clusterSpec, client)
+	if err != nil {
+		//Error while deleting, just resubmit event after wait time.
+		return err
+	}
+	return nil
 }

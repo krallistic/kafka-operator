@@ -7,15 +7,11 @@ import (
 	"github.com/krallistic/kafka-operator/controller"
 	"github.com/krallistic/kafka-operator/kafka"
 	spec "github.com/krallistic/kafka-operator/spec"
-	"github.com/krallistic/kafka-operator/util"
-	k8sclient "k8s.io/client-go/kubernetes"
 )
 
 func TestProcessor_DetectChangeType(t *testing.T) {
 	type fields struct {
-		client             k8sclient.Clientset
 		baseBrokerImage    string
-		util               util.ClientUtil
 		crdController      controller.CustomResourceController
 		kafkaClusters      map[string]*spec.Kafkacluster
 		watchEventsChannel chan spec.KafkaclusterWatchEvent
@@ -187,9 +183,7 @@ func TestProcessor_DetectChangeType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Processor{
-				client:             tt.fields.client,
 				baseBrokerImage:    tt.fields.baseBrokerImage,
-				util:               tt.fields.util,
 				crdController:      tt.fields.crdController,
 				kafkaClusters:      tt.fields.kafkaClusters,
 				watchEventsChannel: tt.fields.watchEventsChannel,

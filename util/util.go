@@ -5,9 +5,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-
 	"k8s.io/api/core/v1"
 	k8sclient "k8s.io/client-go/kubernetes"
 
@@ -18,8 +15,7 @@ import (
 )
 
 const (
-	tprName     = "kafka.operator.com"
-	tprEndpoint = "/apis/extensions/v1beta1/thirdpartyresources"
+
 	//TODO move default Options to spec
 	defaultCPU      = "1"
 	defaultDisk     = "100G"
@@ -41,51 +37,6 @@ type ClientUtil struct {
 
 func EnrichSpecWithLogger(logger *log.Entry, cluster spec.Kafkacluster) *log.Entry {
 	return logger.WithFields(log.Fields{"clusterName": cluster.ObjectMeta.Name, "namespace": cluster.ObjectMeta.Name})
-}
-
-func New(kubeConfigFile, masterHost string) (*ClientUtil, error) {
-	methodLogger := logger.WithFields(log.Fields{"method": "New"})
-
-	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
-	client, err := NewKubeClient(kubeConfigFile)
-	if err != nil {
-		methodLogger.WithFields(log.Fields{
-			"error":  err,
-			"config": kubeConfigFile,
-			"client": client,
-		}).Error("could not init Kubernetes client")
-		return nil, err
-	}
-
-	k := &ClientUtil{
-		KubernetesClient: client,
-		MasterHost:       masterHost,
-	}
-	methodLogger.WithFields(log.Fields{
-		"config": kubeConfigFile,
-		"client": client,
-	}).Debug("Initilized kubernetes cLient")
-
-	return k, nil
-}
-
-func BuildConfig(kubeconfig string) (*rest.Config, error) {
-	if kubeconfig != "" {
-		return clientcmd.BuildConfigFromFlags("", kubeconfig)
-	}
-	return rest.InClusterConfig()
-}
-
-//TODO refactor for config *rest.Config :)
-func NewKubeClient(kubeCfgFile string) (*k8sclient.Clientset, error) {
-
-	config, err := BuildConfig(kubeCfgFile)
-	if err != nil {
-		return nil, err
-	}
-
-	//TODO refactor & log errors
-	return k8sclient.NewForConfig(config)
 }
 
 func (c *ClientUtil) createLabels(cluster spec.Kafkacluster) map[string]string {
