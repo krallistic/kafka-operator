@@ -1,3 +1,6 @@
+Project inactive
+
+
 # kafka-operator - A Kafka Operator for Kubernetes 
 
 A Kubernetes Operator for Apache Kafka, which deploys, configures and manages your kafka cluster through its lifecycle. 
