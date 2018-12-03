@@ -41,7 +41,7 @@ statefulset "zk" created
 ```
 
 ## 3) Create a KafkaCluster spec and deploy
-To deploy a kafka cluster we create spec (example/kafkaObj.yaml): 
+To deploy a kafka cluster we create spec (example/kafka-cluster.yaml): 
 
 ```yaml
 apiVersion: "krallistic.github.com/v1"
